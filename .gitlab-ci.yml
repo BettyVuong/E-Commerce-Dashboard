@@ -1,0 +1,131 @@
+# CI for linters: runs on push and merge requests. Fails pipeline if linters fail.
+stages:
+  - lint
+  - test
+
+# Backend lint (Gradle/Checkstyle)
+lint-backend:
+  stage: lint
+  image: gradle:8.5-jdk17
+  variables:
+    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+  cache:
+    key: "gradle-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - backend/.gradle/
+      - .gradle/
+  script:
+    - cd backend
+    - ./gradlew --no-daemon clean checkstyleMain checkstyleTest -x test
+  artifacts:
+    when: always
+    reports:
+      # publish Checkstyle XML so MR viewers can download
+      junit: []
+    paths:
+      - backend/build/reports/checkstyle/
+    expire_in: 1 week
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+  allow_failure: false
+
+# Frontend lint (ESLint)
+lint-frontend:
+  stage: lint
+  image: node:14
+  cache:
+    key: "node-modules-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - frontend/node_modules/
+  before_script:
+    - cd frontend
+    - npm install
+  script:
+    - npx eslint "src/**/*.{ts,tsx}" -f checkstyle -o eslint-report.xml
+    - npm run lint
+  artifacts:
+    when: always
+    paths:
+      - frontend/eslint-report.xml
+    expire_in: 1 week
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+  allow_failure: false
+
+# Added with issue 56
+# Backend tests + coverage (JaCoCo)
+test-backend:
+  stage: test
+  image: gradle:8.5-jdk17
+  variables:
+    GRADLE_USER_HOME: "$CI_PROJECT_DIR/.gradle"
+  cache:
+    key: "gradle-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - backend/.gradle/
+      - .gradle/
+  script:
+    - cd backend
+    - ./gradlew --no-daemon clean test jacocoTestReport printJacocoSummary
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+  allow_failure: false
+  artifacts:
+    when: always
+    reports:
+      junit: backend/build/test-results/**/*.xml
+    paths:
+      - backend/build/reports/jacoco/test/jacocoTestReport.xml
+      - backend/build/reports/jacoco/test/jacocoTestReport.csv
+      - backend/build/test-results/
+    expire_in: 2 weeks
+  coverage: '/JaCoCo Coverage - Instructions: .*\((\d+\\.\d+)%\)/'
+
+# Frontend tests with coverage (Jest)
+test-frontend:
+  stage: test
+  image: node:14
+  cache:
+    key: "node-modules-${CI_COMMIT_REF_SLUG}"
+    paths:
+      - frontend/node_modules/
+  before_script:
+    - cd frontend
+    - npm install
+  script:
+    - mkdir -p test-results
+    - export JEST_JUNIT_OUTPUT=./test-results/junit.xml
+    - npm install jest-junit --no-save
+    - npm run test:coverage -- --reporters=default --reporters=jest-junit
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+  allow_failure: false
+  artifacts:
+    when: always
+    paths:
+      - frontend/coverage/lcov.info
+      - frontend/test-results/junit.xml
+      - frontend/junit.xml
+    expire_in: 2 weeks
+    reports:
+      junit: frontend/**/junit.xml
+  coverage: '/All files\s+\|\s+\d+\.\d+\s+\|\s+(\d+\.\d+)%/'
+
+# Ensure pipeline runs only for branches and MRs by default
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - when: never
