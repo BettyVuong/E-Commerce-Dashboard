@@ -20,6 +20,9 @@ services:  # Defines the services that make up the application
     networks:  # Networks the Spring service is connected to
       - backend-database  # Network for communicating with MySQL
       - backend-frontend  # Network for communicating with the React service
+    depends_on:
+      - database
+    restart: on-failure  # Restart if the backend fails
     #command: /bin/sh -c "while true; do sleep 3600; done"
   database:  # The MySQL database service
     build: ./database  # Builds the Docker image from the Dockerfile in the './mysql' directory
