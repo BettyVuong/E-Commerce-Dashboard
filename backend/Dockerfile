@@ -56,6 +56,6 @@ RUN --mount=type=cache,target=/home/gradle/.gradle \
 ##########
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
-COPY --from=build /app/build/libs/notes-app-1.0.jar app.jar
+COPY --from=build /app/build/libs/*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java","-jar","/app/app.jar"]
