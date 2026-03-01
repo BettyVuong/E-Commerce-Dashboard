@@ -12,4 +12,4 @@ NPM is used as the build tool for the React/TypeScript frontend. Within the fron
 
 Database connected using Docker Compose-managed MYSQL/MariaDB service used by the Spring Boot backend.
 
-Poetry for Python has not been implemented for this sprint.
+Poetry for Python has not been implemented.
