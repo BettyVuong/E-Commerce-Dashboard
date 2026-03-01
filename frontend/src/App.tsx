@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 
   const App: React.FC = () => {
     return (
-      <div className="App">
+      <div className="App" data-testid="app-root">
         <h1>This is a placeholder</h1>
         <div style={{ marginTop: "30px" }}>
         <iframe width="560" height="315"
