@@ -8,8 +8,6 @@ services:  # Defines the services that make up the application
   backend:  # The Spring application service
     #Build Context: build: ./spring tells Docker to build an image using the Dockerfile located in the ./spring directory.
     build: ./backend  # Builds the Docker image from the Dockerfile located in the './spring' directory
-    ports:
-      - "8080:8080"
     #Environment Variables: These are passed to the container at runtime. For example, DB_ADDRESS is set to jdbc:mysql://mysql:3306, indicating the application should connect to a MySQL database at the given JDBC URL.
     environment:  # Environment variables for the Spring application
       - DB_ADDRESS=jdbc:mysql://database:3306  # JDBC URL for the MySQL database, 'mysql' is the service name in docker-compose
@@ -20,10 +18,13 @@ services:  # Defines the services that make up the application
     networks:  # Networks the Spring service is connected to
       - backend-database  # Network for communicating with MySQL
       - backend-frontend  # Network for communicating with the React service
-    depends_on:
-      - database
-    restart: on-failure
     #command: /bin/sh -c "while true; do sleep 3600; done"
+    volumes:
+      - ./database/scripts:/flyway/sql:ro #load scripts out of backend/scripts and put them in the container at flyway/sql read only
+    depends_on:
+      database: 
+        condition: service_healthy #makes sure database/MariaDB is ready before trying to connect flyway
+
   database:  # The MySQL database service
     build: ./database  # Builds the Docker image from the Dockerfile in the './mysql' directory
     #Environment Variables: Used to configure the MySQL server, like setting the root password (MYSQL_ROOT_PASSWORD) and specifying the database to create at startup (MYSQL_DATABASE).
@@ -35,8 +36,15 @@ services:  # Defines the services that make up the application
       - mariadb_data:/var/lib/mysql  # Maps 'mariadb_data' volume to the data directory of MySQL
     networks:  # Network the MySQL service is connected to
       - backend-database  # Network for communicating with the Spring service
-    ports:
-      - "3306:3306"
+
+    healthcheck:
+      # Docker runs this command inside the database container to check if MariaDB is ready.
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-uroot", "-ppwd"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    
 
   frontend:  # The React frontend service
     build: ./frontend  # Builds the Docker image from the Dockerfile in the './react' directory
