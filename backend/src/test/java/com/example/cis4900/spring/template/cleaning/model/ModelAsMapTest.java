@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Tests for the `asMap()` helpers on model classes.
  *
- * These small tests provide quick validation that the map representation
+ * <p>These small tests provide quick validation that the map representation
  * used for diagnostics and persistence contains expected keys.
  */
 class ModelAsMapTest {

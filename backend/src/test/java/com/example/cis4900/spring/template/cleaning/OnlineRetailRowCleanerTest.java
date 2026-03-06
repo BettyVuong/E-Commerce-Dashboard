@@ -13,7 +13,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Unit tests for {@link OnlineRetailRowCleaner} that exercise common
- * normalization, validation and return-detection rules.
+ *
+ * <p>normalization, validation and return-detection rules.
  */
 class OnlineRetailRowCleanerTest {
 
