@@ -1,7 +1,12 @@
-package com.example.cis4900.spring.template.cleaning;
+package com.example.cis4900.spring.template.cleaning.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.example.cis4900.spring.template.cleaning.model.RawRetailRow;
+import com.example.cis4900.spring.template.cleaning.model.CleanedRetailRecord;
+import com.example.cis4900.spring.template.cleaning.model.CleaningDecision;
+import com.example.cis4900.spring.template.cleaning.model.CleaningReviewStatus;
+import com.example.cis4900.spring.template.cleaning.model.CleaningRunSummary;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -14,13 +19,22 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class OnlineRetailCleaningPipelineService {
 
+    /**
+     * Pipeline service that reads raw rows from `dirty_data`, applies cleaning rules,
+     * writes cleaned rows to `cleaned_online_retail_data` and records manual-review
+     * information in `online_retail_manual_review`.
+     *
+     * The pipeline processes rows in ascending `id` order in batches to avoid
+     * loading the entire table into memory.
+     */
+
     private static final int DEFAULT_BATCH_SIZE = 500;
 
     private final JdbcTemplate jdbcTemplate;
     private final OnlineRetailRowCleaner rowCleaner;
     private final ObjectMapper objectMapper;
 
-    OnlineRetailCleaningPipelineService(
+    public OnlineRetailCleaningPipelineService(
         JdbcTemplate jdbcTemplate,
         OnlineRetailRowCleaner rowCleaner,
         ObjectMapper objectMapper
@@ -31,7 +45,7 @@ public class OnlineRetailCleaningPipelineService {
     }
 
     @Transactional
-    CleaningRunSummary runCleaning(Integer requestedBatchSize) {
+    public CleaningRunSummary runCleaning(Integer requestedBatchSize) {
         int batchSize = requestedBatchSize == null || requestedBatchSize <= 0
             ? DEFAULT_BATCH_SIZE
             : requestedBatchSize;
@@ -42,10 +56,12 @@ public class OnlineRetailCleaningPipelineService {
         long rowsFlaggedAutoCleaned = 0L;
         long returnsDetected = 0L;
 
+        // Track the last processed id so each batch picks up after the previous one.
         int lastSeenId = 0;
         List<RawRetailRow> batch;
 
         do {
+            // Load the next batch of raw rows and process them sequentially.
             batch = loadBatch(lastSeenId, batchSize);
             for (RawRetailRow rawRow : batch) {
                 totalRowsProcessed++;
@@ -54,11 +70,13 @@ public class OnlineRetailCleaningPipelineService {
                 try {
                     CleaningDecision decision = rowCleaner.cleanRow(rawRow);
 
+                    // Persist cleaned records when the decision indicates it's safe.
                     if (decision.shouldInsertCleanedRecord()) {
                         insertCleanedRecord(decision.cleanedRecord());
                         rowsInsertedIntoCleaned++;
                     }
 
+                    // Persist any record that requires manual review (rejected or auto-cleaned).
                     if (decision.shouldInsertReviewRecord()) {
                         insertManualReview(rawRow, decision);
                         if (decision.reviewStatus() == CleaningReviewStatus.REJECTED) {
@@ -73,6 +91,8 @@ public class OnlineRetailCleaningPipelineService {
                         returnsDetected++;
                     }
                 } catch (RuntimeException exception) {
+                    // Unexpected processing errors are recorded as rejections so
+                    // they can be investigated, but they do not abort the whole run.
                     rowsFlaggedRejected++;
                     insertProcessingFailure(rawRow, exception);
                 }
@@ -197,6 +217,8 @@ public class OnlineRetailCleaningPipelineService {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException exception) {
+            // Avoid throwing from logging/diagnostic code; return a minimal JSON
+            // fragment describing the serialization error.
             return "{\"serializationError\":\"" + exception.getMessage() + "\"}";
         }
     }

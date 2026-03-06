@@ -1,4 +1,4 @@
-package com.example.cis4900.spring.template.cleaning;
+package com.example.cis4900.spring.template.cleaning.service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -9,11 +9,28 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import org.springframework.stereotype.Component;
+import com.example.cis4900.spring.template.cleaning.model.CleanedRetailRecord;
+import com.example.cis4900.spring.template.cleaning.model.CleaningDecision;
+import com.example.cis4900.spring.template.cleaning.model.CleaningReviewStatus;
+import com.example.cis4900.spring.template.cleaning.model.RawRetailRow;
 
+/**
+ * Encapsulates the parsing, normalization and validation rules for a single raw row.
+ */
 @Component
-class OnlineRetailRowCleaner {
+public class OnlineRetailRowCleaner {
 
     private static final List<DateTimeFormatter> SUPPORTED_DATE_PATTERNS = List.of(
+
+    /**
+     * Clean a single raw retail row.
+     *
+     * Steps taken:
+     * - Normalize and trim textual fields
+     * - Parse numeric and date fields with tolerant normalization rules
+     * - Accumulate review reasons (non-fatal adjustments) and validation errors (fatal)
+     * - Produce a {@link CleaningDecision} containing either a cleaned record or rejection info
+     */
         DateTimeFormatter.ofPattern("M/d/yyyy H:mm", Locale.US),
         DateTimeFormatter.ofPattern("M/d/yyyy H:mm:ss", Locale.US),
         DateTimeFormatter.ofPattern("M/d/yy H:mm", Locale.US),
@@ -23,7 +40,9 @@ class OnlineRetailRowCleaner {
         DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss", Locale.US)
     );
 
-    CleaningDecision cleanRow(RawRetailRow rawRow) {
+    public CleaningDecision cleanRow(RawRetailRow rawRow) {
+        // Collect information about automatic adjustments (reviewReasons)
+        // and fatal problems (validationErrors) discovered while parsing.
         List<String> reviewReasons = new ArrayList<>();
         List<String> validationErrors = new ArrayList<>();
 
@@ -45,6 +64,7 @@ class OnlineRetailRowCleaner {
             );
         }
 
+        // Detect returns: negative quantity indicates a return transaction.
         boolean isReturn = quantity != null && quantity < 0;
         if (isReturn) {
             reviewReasons.add("Quantity is negative; marked as return transaction");
@@ -82,6 +102,7 @@ class OnlineRetailRowCleaner {
         List<String> reviewReasons,
         List<String> validationErrors
     ) {
+        // Reuse optional normalizer then enforce presence.
         String normalized = normalizeOptionalText(rawValue, fieldName, maxLength, reviewReasons);
         if (normalized == null || normalized.isBlank()) {
             validationErrors.add(fieldName + " is missing");
@@ -95,10 +116,12 @@ class OnlineRetailRowCleaner {
         Integer maxLength,
         List<String> reviewReasons
     ) {
+        // Null means absent value -> keep as null to signal missing optional field.
         if (rawValue == null) {
             return null;
         }
 
+        // Trim whitespace and record if trimming occurred (helpful for auditing).
         String trimmed = rawValue.trim();
         if (!rawValue.equals(trimmed)) {
             reviewReasons.add(fieldName + " had surrounding whitespace and was trimmed");
@@ -108,6 +131,7 @@ class OnlineRetailRowCleaner {
             return null;
         }
 
+        // Truncate overly long values and record the truncation reason.
         if (maxLength != null && trimmed.length() > maxLength) {
             reviewReasons.add(fieldName + " exceeded max length and was truncated to " + maxLength + " chars");
             return trimmed.substring(0, maxLength);
@@ -122,6 +146,7 @@ class OnlineRetailRowCleaner {
         List<String> reviewReasons,
         List<String> validationErrors
     ) {
+        // Delegate to optional parser then enforce presence and validity.
         Integer parsed = parseOptionalInteger(rawValue, fieldName, reviewReasons);
         if (parsed == null) {
             validationErrors.add(fieldName + " is missing or invalid");
@@ -130,10 +155,12 @@ class OnlineRetailRowCleaner {
     }
 
     private Integer parseOptionalInteger(String rawValue, String fieldName, List<String> reviewReasons) {
+        // Empty or blank -> absent optional integer.
         if (rawValue == null || rawValue.isBlank()) {
             return null;
         }
 
+        // Remove grouping commas and normalize trailing .0 (common from spreadsheets).
         String trimmed = rawValue.trim();
         String normalized = trimmed.replace(",", "");
 
@@ -149,6 +176,7 @@ class OnlineRetailRowCleaner {
         try {
             return Integer.valueOf(normalized);
         } catch (NumberFormatException ignored) {
+            // Non-numeric -> treat as missing but record a review reason.
             reviewReasons.add(fieldName + " could not be parsed and was set to null");
             return null;
         }
@@ -159,11 +187,13 @@ class OnlineRetailRowCleaner {
         List<String> reviewReasons,
         List<String> validationErrors
     ) {
+        // Missing price is a validation error.
         if (rawValue == null || rawValue.isBlank()) {
             validationErrors.add("Price is missing");
             return null;
         }
 
+        // Strip common currency symbols and grouping separators.
         String trimmed = rawValue.trim();
         String normalized = trimmed.replace(",", "").replace("$", "").replace("£", "");
         if (!trimmed.equals(normalized)) {
@@ -191,27 +221,27 @@ class OnlineRetailRowCleaner {
         List<String> reviewReasons,
         List<String> validationErrors
     ) {
+        // Missing invoice date is a validation error.
         if (rawValue == null || rawValue.isBlank()) {
             validationErrors.add("InvoiceDate is missing");
             return null;
         }
 
+        // Allow both date/time separators; normalize 'T' to space for common ISO variants.
         String trimmed = rawValue.trim();
         String normalized = trimmed.replace('T', ' ');
         if (!trimmed.equals(normalized)) {
             reviewReasons.add("InvoiceDate separator was normalized");
         }
 
+        // Try supported patterns in order; first match wins.
         for (DateTimeFormatter formatter : SUPPORTED_DATE_PATTERNS) {
             try {
                 LocalDateTime parsed = LocalDateTime.parse(normalized, formatter);
-                if (!DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.US)
-                    .format(parsed).equals(normalized)) {
-                    reviewReasons.add("InvoiceDate format was normalized to database DATETIME format");
-                }
+                reviewReasons.add("InvoiceDate format was normalized to database DATETIME format");
                 return parsed;
             } catch (DateTimeParseException ignored) {
-                // Try next pattern.
+                continue;
             }
         }
 

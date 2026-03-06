@@ -1,19 +1,19 @@
-package com.example.cis4900.spring.template.cleaning;
+package com.example.cis4900.spring.template.cleaning.model;
 
 import java.util.List;
 
-record CleaningDecision(
+public record CleaningDecision(
     CleanedRetailRecord cleanedRecord,
     CleaningReviewStatus reviewStatus,
     List<String> reviewReasons,
     List<String> validationErrors
 ) {
 
-    boolean shouldInsertCleanedRecord() {
+    public boolean shouldInsertCleanedRecord() {
         return cleanedRecord != null && validationErrors.isEmpty();
     }
 
-    boolean shouldInsertReviewRecord() {
+    public boolean shouldInsertReviewRecord() {
         return reviewStatus != CleaningReviewStatus.NONE;
     }
 }

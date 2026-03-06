@@ -1,4 +1,4 @@
-package com.example.cis4900.spring.template.cleaning;
+package com.example.cis4900.spring.template.cleaning.model;
 
 public record CleaningRunSummary(
     long totalRowsProcessed,
@@ -6,5 +6,4 @@ public record CleaningRunSummary(
     long rowsFlaggedRejected,
     long rowsFlaggedAutoCleaned,
     long returnsDetected
-) {
-}
+) {}

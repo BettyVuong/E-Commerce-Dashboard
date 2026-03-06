@@ -1,5 +1,9 @@
-package com.example.cis4900.spring.template.cleaning;
+package com.example.cis4900.spring.template.cleaning.controller;
 
+import com.example.cis4900.spring.template.cleaning.dto.CreateCleaningJobRequest;
+import com.example.cis4900.spring.template.cleaning.dto.CleaningJobResource;
+import com.example.cis4900.spring.template.cleaning.model.CleaningRunSummary;
+import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningPipelineService;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Map;
@@ -19,6 +23,14 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @RequestMapping("/api/cleaning-jobs")
 public class OnlineRetailCleaningController {
 
+    /**
+     * Simple REST controller exposing synchronous cleaning job endpoints.
+     *
+     * Note: For this exercise the controller runs the cleaning pipeline synchronously
+     * on POST and stores results in an in-memory map keyed by job id. In production
+     * this would typically be an async job with persistence to a jobs table.
+     */
+
     private final OnlineRetailCleaningPipelineService cleaningPipelineService;
     private final Map<String, CleaningJobResource> jobsById = new ConcurrentHashMap<>();
 
@@ -26,16 +38,11 @@ public class OnlineRetailCleaningController {
         this.cleaningPipelineService = cleaningPipelineService;
     }
 
-    /**
-     * Creates and executes a data-cleaning job for the online retail dataset.
-     *
-     * @param request optional payload with the requested batch size
-     * @return created cleaning job resource
-     */
     @PostMapping
     public ResponseEntity<CleaningJobResource> createCleaningJob(
         @RequestBody(required = false) CreateCleaningJobRequest request
     ) {
+        // Allow callers to override batch size for the run; null uses default.
         Integer batchSize = request == null ? null : request.batchSize();
         CleaningRunSummary summary = cleaningPipelineService.runCleaning(batchSize);
 
@@ -60,12 +67,6 @@ public class OnlineRetailCleaningController {
             .body(jobResource);
     }
 
-    /**
-     * Reads a previously created cleaning job resource.
-     *
-     * @param jobId cleaning job resource identifier
-     * @return cleaning job resource if found
-     */
     @GetMapping("/{jobId}")
     public ResponseEntity<CleaningJobResource> getCleaningJob(@PathVariable String jobId) {
         CleaningJobResource jobResource = jobsById.get(jobId);
