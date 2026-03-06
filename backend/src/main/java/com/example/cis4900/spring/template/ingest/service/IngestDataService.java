@@ -31,11 +31,16 @@ public class IngestDataService {
     public void processFile(MultipartFile file) {
         // file processing, e.g. read CSV and save to database
         String fileName = file.getOriginalFilename();
+        //check if correct file type has no information
+        if (fileName == null || file.isEmpty() || fileName.trim().isEmpty()) {
+            throw new IllegalArgumentException("File is empty");
+        }
+        //check if file type is supported (csv or xlsx)
         if (fileName.toLowerCase().endsWith(".csv")) {
             // process CSV file
             List<DirtyData> dirtyDataList = parseCsv(file);
             dirtyDataRepository.saveAll(dirtyDataList);
-        } else if (fileName.toLowerCase().endsWith(".xlsx")) {
+        } else if (fileName.endsWith(".xlsx")) {
             // process Excel file
             List<DirtyData> dirtyDataList = parseXlsx(file);
             dirtyDataRepository.saveAll(dirtyDataList);
@@ -59,14 +64,14 @@ public class IngestDataService {
                 }
                 // Assuming CSV columns: id, name, value, timestamp
                 DirtyData dirtyData = new DirtyData(
-                    line[0], // invoice
-                    line[1], // stockCode
-                    line[2], // description
-                    line[3], // quantity
-                    line[4], // invoiceDate
-                    line[5], // unitPrice
-                    line[6], // customerID
-                    line[7]  // country
+                    getValue(line, 0), // invoice
+                    getValue(line, 1), // stockCode
+                    getValue(line, 2), // description
+                    getValue(line, 3), // quantity
+                    getValue(line, 4), // invoiceDate
+                    getValue(line, 5), // unitPrice
+                    getValue(line, 6), // customerID
+                    getValue(line, 7)  // country
                 );
                 // Add the created DirtyData object to the list
                 dirtyDataList.add(dirtyData);
@@ -74,7 +79,21 @@ public class IngestDataService {
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse CSV file", e);
         }
+
+        //if parse is empty
+        if (dirtyDataList.isEmpty()) {
+            throw new RuntimeException("CSV file is empty or only contains headers");
+        }
         return dirtyDataList;
+    }
+
+    //helper method to get all data from the csv file and handle missing values by returning empty string
+    private String getValue(String [] line, int index) {
+        if (line.length > index && line[index] != null && !line[index].isEmpty()) {
+            return line[index];
+        } else {
+            return ""; //default to empty for null value
+        }
     }
 
     private List<DirtyData> parseXlsx(MultipartFile file) {
@@ -88,20 +107,33 @@ public class IngestDataService {
                     continue;
                 }
                 DirtyData dirtyData = new DirtyData(
-                    row.getCell(0).getStringCellValue(), // invoice
-                    row.getCell(1).getStringCellValue(), // stockCode
-                    row.getCell(2).getStringCellValue(), // description
-                    row.getCell(3).getStringCellValue(), // quantity
-                    row.getCell(4).getStringCellValue(), // invoiceDate
-                    row.getCell(5).getStringCellValue(), // unitPrice
-                    row.getCell(6).getStringCellValue(), // customerID
-                    row.getCell(7).getStringCellValue()  // country
+                    getCellValue(row, 0), // invoice
+                    getCellValue(row, 1), // stockCode
+                    getCellValue(row, 2), // description
+                    getCellValue(row, 3), // quantity
+                    getCellValue(row, 4), // invoiceDate
+                    getCellValue(row, 5), // unitPrice
+                    getCellValue(row, 6), // customerID
+                    getCellValue(row, 7)  // country
                 );
                 dirtyDataList.add(dirtyData);
             }
         } catch (Exception e) {
             throw new RuntimeException("Failed to parse Excel file", e);
         }
+        
+        //if parse is empty
+        if (dirtyDataList.isEmpty()) {
+            throw new RuntimeException("Excel file is empty or only contains headers");
+        }
         return dirtyDataList;
+    }
+
+    private String getCellValue(Row row, int index) {
+        if (row.getCell(index) != null) {
+            return row.getCell(index).getStringCellValue();
+        } else {
+            return ""; //default to empty for null value
+        }
     }
 }
