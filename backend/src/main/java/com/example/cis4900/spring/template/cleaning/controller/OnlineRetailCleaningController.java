@@ -26,7 +26,7 @@ public class OnlineRetailCleaningController {
     /**
      * Simple REST controller exposing synchronous cleaning job endpoints.
      *
-     * Note: For this exercise the controller runs the cleaning pipeline synchronously
+     * <p>Note: For this exercise the controller runs the cleaning pipeline synchronously
      * on POST and stores results in an in-memory map keyed by job id. In production
      * this would typically be an async job with persistence to a jobs table.
      */

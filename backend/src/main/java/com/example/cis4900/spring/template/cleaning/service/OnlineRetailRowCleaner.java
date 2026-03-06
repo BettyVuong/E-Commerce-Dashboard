@@ -21,16 +21,6 @@ import com.example.cis4900.spring.template.cleaning.model.RawRetailRow;
 public class OnlineRetailRowCleaner {
 
     private static final List<DateTimeFormatter> SUPPORTED_DATE_PATTERNS = List.of(
-
-    /**
-     * Clean a single raw retail row.
-     *
-     * Steps taken:
-     * - Normalize and trim textual fields
-     * - Parse numeric and date fields with tolerant normalization rules
-     * - Accumulate review reasons (non-fatal adjustments) and validation errors (fatal)
-     * - Produce a {@link CleaningDecision} containing either a cleaned record or rejection info
-     */
         DateTimeFormatter.ofPattern("M/d/yyyy H:mm", Locale.US),
         DateTimeFormatter.ofPattern("M/d/yyyy H:mm:ss", Locale.US),
         DateTimeFormatter.ofPattern("M/d/yy H:mm", Locale.US),
@@ -40,6 +30,15 @@ public class OnlineRetailRowCleaner {
         DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss", Locale.US)
     );
 
+    /**
+     * Clean a single raw retail row.
+     *
+     * <p>Steps taken:
+     * - Normalize and trim textual fields
+     * - Parse numeric and date fields with tolerant normalization rules
+     * - Accumulate review reasons (non-fatal adjustments) and validation errors (fatal)
+     * - Produce a {@link CleaningDecision} containing either a cleaned record or rejection info
+     */
     public CleaningDecision cleanRow(RawRetailRow rawRow) {
         // Collect information about automatic adjustments (reviewReasons)
         // and fatal problems (validationErrors) discovered while parsing.

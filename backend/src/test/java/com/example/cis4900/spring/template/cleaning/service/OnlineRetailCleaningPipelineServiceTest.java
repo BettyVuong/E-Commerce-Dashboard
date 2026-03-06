@@ -21,7 +21,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /**
  * Unit tests for {@link OnlineRetailCleaningPipelineService}.
  *
- * These tests exercise the high-level pipeline behavior using a mocked
+ * <p>These tests exercise the high-level pipeline behavior using a mocked
  * {@link OnlineRetailRowCleaner} and {@link org.springframework.jdbc.core.JdbcTemplate}.
  */
 class OnlineRetailCleaningPipelineServiceTest {

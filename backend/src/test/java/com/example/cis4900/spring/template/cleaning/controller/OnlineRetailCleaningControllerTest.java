@@ -14,7 +14,7 @@ import org.springframework.http.ResponseEntity;
 /**
  * Controller-level unit tests for the cleaning job endpoints.
  *
- * These tests exercise request/response shaping and job storage semantics.
+ * <p>These tests exercise request/response shaping and job storage semantics.
  */
 class OnlineRetailCleaningControllerTest {
 

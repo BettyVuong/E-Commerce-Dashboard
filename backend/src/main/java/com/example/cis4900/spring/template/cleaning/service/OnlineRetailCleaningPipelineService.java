@@ -24,7 +24,7 @@ public class OnlineRetailCleaningPipelineService {
      * writes cleaned rows to `cleaned_online_retail_data` and records manual-review
      * information in `online_retail_manual_review`.
      *
-     * The pipeline processes rows in ascending `id` order in batches to avoid
+     * <p>The pipeline processes rows in ascending `id` order in batches to avoid
      * loading the entire table into memory.
      */
 
