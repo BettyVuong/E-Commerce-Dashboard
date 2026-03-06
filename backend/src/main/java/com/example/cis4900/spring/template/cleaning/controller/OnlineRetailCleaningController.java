@@ -6,9 +6,14 @@ import com.example.cis4900.spring.template.cleaning.model.CleaningRunSummary;
 import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningPipelineService;
 import java.net.URI;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,19 +28,36 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @RequestMapping("/api/cleaning-jobs")
 public class OnlineRetailCleaningController {
 
+    private static final String STATUS_PENDING = "PENDING";
+    private static final String STATUS_RUNNING = "RUNNING";
+    private static final String STATUS_COMPLETED = "COMPLETED";
+    private static final String STATUS_FAILED = "FAILED";
+
     /**
-     * Simple REST controller exposing synchronous cleaning job endpoints.
+     * Simple REST controller exposing cleaning job endpoints.
      *
-     * <p>Note: For this exercise the controller runs the cleaning pipeline synchronously
-     * on POST and stores results in an in-memory map keyed by job id. In production
-     * this would typically be an async job with persistence to a jobs table.
+     * <p>POST creates a job resource immediately, then runs cleaning asynchronously.
+     * The current status can be polled with GET by job id.
+     *
+     * <p>For this exercise jobs are stored in-memory. In production this would
+     * typically use persistent storage.
      */
 
     private final OnlineRetailCleaningPipelineService cleaningPipelineService;
+    private final Executor jobExecutor;
     private final Map<String, CleaningJobResource> jobsById = new ConcurrentHashMap<>();
 
+    @Autowired
     public OnlineRetailCleaningController(OnlineRetailCleaningPipelineService cleaningPipelineService) {
+        this(cleaningPipelineService, ForkJoinPool.commonPool());
+    }
+
+    OnlineRetailCleaningController(
+        OnlineRetailCleaningPipelineService cleaningPipelineService,
+        Executor jobExecutor
+    ) {
         this.cleaningPipelineService = cleaningPipelineService;
+        this.jobExecutor = Objects.requireNonNull(jobExecutor, "jobExecutor");
     }
 
     @PostMapping
@@ -44,16 +66,16 @@ public class OnlineRetailCleaningController {
     ) {
         // Allow callers to override batch size for the run; null uses default.
         Integer batchSize = request == null ? null : request.batchSize();
-        CleaningRunSummary summary = cleaningPipelineService.runCleaning(batchSize);
-
         String jobId = UUID.randomUUID().toString();
-        CleaningJobResource jobResource = new CleaningJobResource(
+        Instant createdAt = Instant.now();
+
+        CleaningJobResource queuedJob = new CleaningJobResource(
             jobId,
-            "COMPLETED",
-            Instant.now(),
-            summary
+            STATUS_PENDING,
+            createdAt,
+            null
         );
-        jobsById.put(jobId, jobResource);
+        jobsById.put(jobId, queuedJob);
 
         URI location = ServletUriComponentsBuilder
             .fromCurrentRequest()
@@ -61,10 +83,41 @@ public class OnlineRetailCleaningController {
             .buildAndExpand(jobId)
             .toUri();
 
+        CompletableFuture.runAsync(
+            () -> runCleaningJob(jobId, createdAt, batchSize),
+            jobExecutor
+        );
+
         return ResponseEntity
-            .created(location)
+            .accepted()
+            .location(location)
             .cacheControl(CacheControl.noStore())
-            .body(jobResource);
+            .body(queuedJob);
+    }
+
+    private void runCleaningJob(String jobId, Instant createdAt, Integer batchSize) {
+        jobsById.computeIfPresent(
+            jobId,
+            (ignored, existingJob) -> new CleaningJobResource(
+                existingJob.jobId(),
+                STATUS_RUNNING,
+                existingJob.createdAt(),
+                existingJob.summary()
+            )
+        );
+
+        try {
+            CleaningRunSummary summary = cleaningPipelineService.runCleaning(batchSize);
+            jobsById.put(
+                jobId,
+                new CleaningJobResource(jobId, STATUS_COMPLETED, createdAt, summary)
+            );
+        } catch (RuntimeException exception) {
+            jobsById.put(
+                jobId,
+                new CleaningJobResource(jobId, STATUS_FAILED, createdAt, null)
+            );
+        }
     }
 
     @GetMapping("/{jobId}")
