@@ -306,7 +306,7 @@ class IngestDataControllerTest {
 
     //test controllers through mock http requests
     @Test
-    void testUploadFile() throws Exception{
+    void testUploadFile() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "Invoice,StockCode,Description,Quantity,InvoiceDate,UnitPrice,CustomerID,Country\n536374,82345,WHITE HANGING HEART T-LIGHT HOLDER,6,12/1/2010 8:26,2.55,17850.0,United Kingdom".getBytes());
         
         doNothing().when(ingestDataService).processFile(any(org.springframework.web.multipart.MultipartFile.class));
