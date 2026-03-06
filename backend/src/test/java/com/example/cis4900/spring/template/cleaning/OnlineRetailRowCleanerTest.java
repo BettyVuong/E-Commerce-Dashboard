@@ -1,4 +1,4 @@
-package com.example.cis4900.spring.template.cleaning;
+package com.example.cis4900.spring.template.cleaning.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -6,8 +6,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
+import com.example.cis4900.spring.template.cleaning.model.RawRetailRow;
+import com.example.cis4900.spring.template.cleaning.model.CleaningDecision;
+import com.example.cis4900.spring.template.cleaning.model.CleaningReviewStatus;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Unit tests for {@link OnlineRetailRowCleaner} that exercise common
+ * normalization, validation and return-detection rules.
+ */
 class OnlineRetailRowCleanerTest {
 
     private final OnlineRetailRowCleaner cleaner = new OnlineRetailRowCleaner();
@@ -26,6 +33,7 @@ class OnlineRetailRowCleanerTest {
             "UK"
         );
 
+        // Run cleaning and verify rejection on critical invalid fields
         CleaningDecision decision = cleaner.cleanRow(row);
 
         assertEquals(CleaningReviewStatus.REJECTED, decision.reviewStatus());
@@ -49,6 +57,7 @@ class OnlineRetailRowCleanerTest {
             " United Kingdom "
         );
 
+        // Expect auto-clean behavior: trimming, numeric normalization, currency parsing
         CleaningDecision decision = cleaner.cleanRow(row);
 
         assertEquals(CleaningReviewStatus.AUTO_CLEANED, decision.reviewStatus());
@@ -75,6 +84,7 @@ class OnlineRetailRowCleanerTest {
             "United Kingdom"
         );
 
+        // Negative quantity should be detected as a return and recorded in reasons
         CleaningDecision decision = cleaner.cleanRow(row);
 
         assertTrue(decision.shouldInsertCleanedRecord());

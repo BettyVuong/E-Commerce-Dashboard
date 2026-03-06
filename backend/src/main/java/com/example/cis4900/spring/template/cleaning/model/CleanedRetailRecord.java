@@ -1,23 +1,26 @@
-package com.example.cis4900.spring.template.cleaning;
+package com.example.cis4900.spring.template.cleaning.model;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-record RawRetailRow(
-    int id,
+public record CleanedRetailRecord(
+    int rawDataId,
     String invoice,
     String stockCode,
     String description,
-    String quantity,
-    String invoiceDate,
-    String price,
-    String customerId,
-    String country
+    int quantity,
+    LocalDateTime invoiceDate,
+    BigDecimal price,
+    Integer customerId,
+    String country,
+    boolean isReturn
 ) {
 
-    Map<String, Object> asMap() {
+    public Map<String, Object> asMap() {
         Map<String, Object> values = new LinkedHashMap<>();
-        values.put("id", id);
+        values.put("rawDataId", rawDataId);
         values.put("Invoice", invoice);
         values.put("StockCode", stockCode);
         values.put("Description", description);
@@ -26,6 +29,7 @@ record RawRetailRow(
         values.put("Price", price);
         values.put("CustomerID", customerId);
         values.put("Country", country);
+        values.put("isReturn", isReturn);
         return values;
     }
 }
