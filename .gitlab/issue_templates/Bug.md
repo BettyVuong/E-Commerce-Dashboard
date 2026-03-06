@@ -29,3 +29,10 @@
 - [ ] Error no longer occurs
 - [ ] Tests added/updated (if applicable)
 - [ ] No loss of functionality
+
+## Definition of Done
+The following criteria must be met before this is considered complete:
+- [ ] **Testing:** Automated tests added/updated to prevent recurrence.
+- [ ] **Peer Code Review:** The fix has been reviewed and approved.
+- [ ] **Deployment:** The fix is deployed and verified.
+- [ ] **Acceptance Criteria Met:** Verified that the specific bug is resolved.
