@@ -3,7 +3,7 @@ package com.example.cis4900.spring.template.ingest.service;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
-
+import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Row;
@@ -22,7 +22,7 @@ import jakarta.transaction.Transactional;
 public class IngestDataService {
     //auto injects the dirtyDataRepository into the service
     private final DirtyDataRepository dirtyDataRepository;
-
+    private final DataFormatter dataFormatter = new DataFormatter();
     public IngestDataService(DirtyDataRepository dirtyDataRepository) {
         this.dirtyDataRepository = dirtyDataRepository;
     }
@@ -131,7 +131,7 @@ public class IngestDataService {
 
     private String getCellValue(Row row, int index) {
         if (row.getCell(index) != null) {
-            return row.getCell(index).getStringCellValue();
+            return dataFormatter.formatCellValue(row.getCell(index));
         } else {
             return ""; //default to empty for null value
         }
