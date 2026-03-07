@@ -1,6 +1,7 @@
 package com.example.cis4900.spring.template;
 
 import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningPipelineService;
+import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningQueryService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,6 +18,9 @@ class TemplateApplicationTests {
 
     @MockBean
     private OnlineRetailCleaningPipelineService cleaningPipelineService;
+
+    @MockBean
+    private OnlineRetailCleaningQueryService cleaningQueryService;
 
     @Test
     void contextLoads() {
