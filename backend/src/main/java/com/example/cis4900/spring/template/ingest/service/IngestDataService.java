@@ -23,6 +23,7 @@ public class IngestDataService {
     //auto injects the dirtyDataRepository into the service
     private final DirtyDataRepository dirtyDataRepository;
     private final DataFormatter dataFormatter = new DataFormatter();
+
     public IngestDataService(DirtyDataRepository dirtyDataRepository) {
         this.dirtyDataRepository = dirtyDataRepository;
     }
