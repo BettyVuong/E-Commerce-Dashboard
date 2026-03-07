@@ -1,6 +1,8 @@
 package com.example.cis4900.spring.template;
 
+import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningPipelineService;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import com.example.cis4900.spring.template.ingest.repository.DirtyDataRepository;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -12,6 +14,9 @@ class TemplateApplicationTests {
     // Mock the DirtyDataRepository to avoid needing a real database connection during tests
     @MockBean
     private DirtyDataRepository dirtyDataRepository;
+
+    @MockBean
+    private OnlineRetailCleaningPipelineService cleaningPipelineService;
 
     @Test
     void contextLoads() {
