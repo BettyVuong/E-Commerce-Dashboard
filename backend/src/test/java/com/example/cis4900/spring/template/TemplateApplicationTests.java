@@ -13,6 +13,9 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 class TemplateApplicationTests {
 
     @MockBean
+    private DirtyDataRepository dirtyDataRepository;
+
+    @MockBean
     private OnlineRetailCleaningPipelineService cleaningPipelineService;
 
     @MockBean
