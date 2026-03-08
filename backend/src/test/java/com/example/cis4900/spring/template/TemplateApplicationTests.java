@@ -12,7 +12,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 @SpringBootTest(properties = "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.flywaydb.core.FlywayAutoConfiguration")
 class TemplateApplicationTests {
 
-
     @MockBean
     private OnlineRetailCleaningPipelineService cleaningPipelineService;
 
