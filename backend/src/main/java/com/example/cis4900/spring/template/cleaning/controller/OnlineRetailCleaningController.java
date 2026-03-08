@@ -13,6 +13,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +29,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @RestController
 @RequestMapping("/api/cleaning-jobs")
 public class OnlineRetailCleaningController {
+    private static final Logger LOGGER = LoggerFactory.getLogger(OnlineRetailCleaningController.class);
 
     private static final String STATUS_PENDING = "PENDING";
     private static final String STATUS_RUNNING = "RUNNING";
@@ -76,6 +79,7 @@ public class OnlineRetailCleaningController {
             null
         );
         jobsById.put(jobId, queuedJob);
+        LOGGER.info("Queued cleaning job {} with batchSize={}", jobId, batchSize);
 
         URI location = ServletUriComponentsBuilder
             .fromCurrentRequest()
@@ -96,6 +100,7 @@ public class OnlineRetailCleaningController {
     }
 
     private void runCleaningJob(String jobId, Instant createdAt, Integer batchSize) {
+        LOGGER.info("Starting cleaning job {} (batchSize={})", jobId, batchSize);
         jobsById.computeIfPresent(
             jobId,
             (ignored, existingJob) -> new CleaningJobResource(
@@ -112,11 +117,28 @@ public class OnlineRetailCleaningController {
                 jobId,
                 new CleaningJobResource(jobId, STATUS_COMPLETED, createdAt, summary)
             );
-        } catch (RuntimeException exception) {
+            LOGGER.info(
+                "Cleaning job {} completed: processed={}, inserted={}, rejected={}, autoCleaned={}, returns={}",
+                jobId,
+                summary.totalRowsProcessed(),
+                summary.rowsInsertedIntoCleaned(),
+                summary.rowsFlaggedRejected(),
+                summary.rowsFlaggedAutoCleaned(),
+                summary.returnsDetected()
+            );
+            // Catch broad failures so job state does not remain RUNNING forever.
+        } catch (Exception exception) {
             jobsById.put(
                 jobId,
                 new CleaningJobResource(jobId, STATUS_FAILED, createdAt, null)
             );
+            LOGGER.error("Cleaning job {} failed with exception", jobId, exception);
+        } catch (Throwable throwable) {
+            jobsById.put(
+                jobId,
+                new CleaningJobResource(jobId, STATUS_FAILED, createdAt, null)
+            );
+            LOGGER.error("Cleaning job {} failed with throwable", jobId, throwable);
         }
     }
 
@@ -124,8 +146,12 @@ public class OnlineRetailCleaningController {
     public ResponseEntity<CleaningJobResource> getCleaningJob(@PathVariable String jobId) {
         CleaningJobResource jobResource = jobsById.get(jobId);
         if (jobResource == null) {
+            LOGGER.info("Cleaning job {} not found", jobId);
             return ResponseEntity.notFound().build();
         }
+
+        // Debug-level polling logs are useful during long-running imports.
+        LOGGER.debug("Cleaning job {} polled with status={}", jobId, jobResource.status());
 
         return ResponseEntity
             .ok()

@@ -1,6 +1,7 @@
 package com.example.cis4900.spring.template.cleaning.controller;
 
 import com.example.cis4900.spring.template.cleaning.dto.CleanedRetailDataItem;
+import com.example.cis4900.spring.template.cleaning.dto.DirtyRetailDataItem;
 import com.example.cis4900.spring.template.cleaning.dto.ManualReviewItem;
 import com.example.cis4900.spring.template.cleaning.dto.PagedResponse;
 import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningQueryService;
@@ -54,6 +55,25 @@ public class OnlineRetailCleaningDataController {
     @GetMapping("/manual-review")
     public ResponseEntity<PagedResponse<ManualReviewItem>> getManualReviewPage(
         @RequestParam(defaultValue = "0") int page,
+        @RequestParam(required = false) Integer size,
+        // Optional filter used by frontend Invalid tab to request only REJECTED rows.
+        @RequestParam(required = false) String reviewStatus
+    ) {
+        validatePage(page);
+        int resolvedSize = resolveSize(size);
+
+        return ResponseEntity
+            .ok()
+            .cacheControl(CacheControl.noStore())
+            .body(cleaningQueryService.getManualReviewPage(page, resolvedSize, reviewStatus));
+    }
+
+    /**
+     * Reads one page of original uploaded rows for frontend table rendering.
+     */
+    @GetMapping("/dirty")
+    public ResponseEntity<PagedResponse<DirtyRetailDataItem>> getDirtyDataPage(
+        @RequestParam(defaultValue = "0") int page,
         @RequestParam(required = false) Integer size
     ) {
         validatePage(page);
@@ -62,7 +82,7 @@ public class OnlineRetailCleaningDataController {
         return ResponseEntity
             .ok()
             .cacheControl(CacheControl.noStore())
-            .body(cleaningQueryService.getManualReviewPage(page, resolvedSize));
+            .body(cleaningQueryService.getDirtyDataPage(page, resolvedSize));
     }
 
     private static void validatePage(int page) {

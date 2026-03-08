@@ -11,6 +11,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
@@ -18,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OnlineRetailCleaningPipelineService {
+    private static final Logger LOGGER = LoggerFactory.getLogger(OnlineRetailCleaningPipelineService.class);
 
     /**
      * Pipeline service that reads raw rows from `dirty_data`, applies cleaning rules,
@@ -50,6 +53,8 @@ public class OnlineRetailCleaningPipelineService {
             ? DEFAULT_BATCH_SIZE
             : requestedBatchSize;
 
+        LOGGER.info("runCleaning started with batchSize={}", batchSize);
+
         long totalRowsProcessed = 0L;
         long rowsInsertedIntoCleaned = 0L;
         long rowsFlaggedRejected = 0L;
@@ -63,6 +68,7 @@ public class OnlineRetailCleaningPipelineService {
         do {
             // Load the next batch of raw rows and process them sequentially.
             batch = loadBatch(lastSeenId, batchSize);
+            LOGGER.info("Loaded batch with {} rows after lastSeenId={}", batch.size(), lastSeenId);
             for (RawRetailRow rawRow : batch) {
                 totalRowsProcessed++;
                 lastSeenId = rawRow.id();
@@ -93,11 +99,21 @@ public class OnlineRetailCleaningPipelineService {
                 } catch (RuntimeException exception) {
                     // Unexpected processing errors are recorded as rejections so
                     // they can be investigated, but they do not abort the whole run.
+                    LOGGER.warn("Cleaning failed for rawRow id={}: {}", rawRow.id(), exception.getMessage());
                     rowsFlaggedRejected++;
                     insertProcessingFailure(rawRow, exception);
                 }
             }
         } while (!batch.isEmpty());
+
+        LOGGER.info(
+            "runCleaning finished: processed={}, inserted={}, rejected={}, autoCleaned={}, returns={}",
+            totalRowsProcessed,
+            rowsInsertedIntoCleaned,
+            rowsFlaggedRejected,
+            rowsFlaggedAutoCleaned,
+            returnsDetected
+        );
 
         return new CleaningRunSummary(
             totalRowsProcessed,
