@@ -16,6 +16,7 @@ import org.apache.poi.ss.usermodel.Workbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import jakarta.persistence.EntityManager;
 import org.springframework.mock.web.MockMultipartFile;
 import java.io.ByteArrayOutputStream;
 
@@ -26,13 +27,15 @@ import com.example.cis4900.spring.template.ingest.service.IngestDataService;
 class IngestDataServiceTest {
     private IngestDataService ingestDataService;
     private DirtyDataRepository dirtyDataRepository;
+    private EntityManager entityManager;
 
     @BeforeEach
     void setUp() {
         //mock repo
         dirtyDataRepository = mock(DirtyDataRepository.class);
+        entityManager = mock(EntityManager.class);
         //inject mock repo into service
-        ingestDataService = new IngestDataService(dirtyDataRepository);
+        ingestDataService = new IngestDataService(dirtyDataRepository, entityManager);
     }
 
     //test that a valid CSV file is processed correctly and saved to the repository
