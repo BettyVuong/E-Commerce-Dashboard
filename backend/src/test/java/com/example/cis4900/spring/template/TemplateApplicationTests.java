@@ -13,13 +13,13 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 class TemplateApplicationTests {
 
     @MockBean
-    private DirtyDataRepository dirtyDataRepository;
-
-    @MockBean
     private OnlineRetailCleaningPipelineService cleaningPipelineService;
 
     @MockBean
     private OnlineRetailCleaningQueryService cleaningQueryService;
+
+    @MockBean
+    private DirtyDataRepository dirtyDataRepository;
 
     @Test
     void contextLoads() {
