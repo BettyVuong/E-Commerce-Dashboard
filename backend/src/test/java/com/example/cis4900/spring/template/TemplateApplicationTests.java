@@ -12,9 +12,6 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 @SpringBootTest(properties = "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.flywaydb.core.FlywayAutoConfiguration")
 class TemplateApplicationTests {
 
-    // Mock the DirtyDataRepository to avoid needing a real database connection during tests
-    @MockBean
-    private DirtyDataRepository dirtyDataRepository;
 
     @MockBean
     private OnlineRetailCleaningPipelineService cleaningPipelineService;
