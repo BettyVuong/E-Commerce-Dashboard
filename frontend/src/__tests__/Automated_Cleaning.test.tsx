@@ -3,16 +3,14 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import '@testing-library/jest-dom'
 import { DataIngestion } from "../DataIngestion";
 
-//const declared here
-const mockFetch = jest.fn();//mock function that replaces browser fetch
+const mockFetch = jest.fn();
 const mockCleanData = {
         entries: [{ invoice: '581492', stockCode: '22995', description: 'TRAVEL CARD WALLET SUKI', quantity: 4, price: 0.83, customerId: '' }],
         totalEntries: 1
     };
 
 const file = new File(['a,b'], 'test.csv', { type: 'text/csv' });
-//checks to see if alert function is called and replaces it with a blank function
-const alert = jest.spyOn(window, 'alert').mockImplementation(() => {});
+const alert = jest.spyOn(window, 'alert');
 
 beforeEach(() => {
     global.fetch = mockFetch
@@ -20,19 +18,13 @@ beforeEach(() => {
 
 afterEach(() => {
     mockFetch.mockReset();
-    jest.useFakeTimers();//'freezes time after each test'
+    jest.useFakeTimers();
 });
-/**
- *
- * This test uses a mocked version of fetch to simulate a network call to /api/ingest/upload.
- * and then a second call to /api/cleaning-jobs immediately after the upload succeeds.
- * It selects a file, clicks submit, and checks that the first fetch call was
- * made to /api/ingest/upload with a POST method. And the second was to /api/cleaning-job with a POST Method
- */
+
 test('Fetch upload API and Cleaning API', async () => {
     mockFetch
-    .mockResolvedValueOnce({ ok: true, text: async() => ''})//upload
-    .mockResolvedValueOnce({ ok: true, json: async() =>({jobId: '1'}) });//cleaning job
+    .mockResolvedValueOnce({ ok: true, text: async() => ''})
+    .mockResolvedValueOnce({ ok: true, json: async() =>({jobId: '1'}) })
     render(<DataIngestion />);
 
    fireEvent.change(screen.getByLabelText('Select Data File:'), { target: { files: [file] } });
@@ -44,21 +36,13 @@ test('Fetch upload API and Cleaning API', async () => {
     });
 });
 
-/**
- * This test simulates a full job completion flow:
- * 1. POST /api/ingest/upload - uploads the file
- * 2. POST /api/cleaning-jobs - creates the cleaning job
- * 3. GET /api/cleaning-jobs/{jobId} - retrieves the cleaning job status
- * 4. GET /api/cleaning-data/cleaned - retrieves the cleaned data
- * and checks that the clean data is rendered in the table after the job completes.
- * timeout is used to give the polling(status) more time before failing the test
- */
+
 test('renders clean data after job completes', async () => {
     mockFetch
-        .mockResolvedValueOnce({ ok: true, text: async() => ''}) //POST upload
-        .mockResolvedValueOnce({ ok: true, json: async() =>({jobId: '1'}) }) //POST cleaning-jobs
-        .mockResolvedValueOnce({ ok: true, json: async() =>({status: 'COMPLETED'}) }) // GETcleaning job status
-        .mockResolvedValue({ok: true, json: async () => mockCleanData})//GET cleaned data
+        .mockResolvedValueOnce({ ok: true, text: async() => ''})
+        .mockResolvedValueOnce({ ok: true, json: async() =>({jobId: '1'}) })
+        .mockResolvedValueOnce({ ok: true, json: async() =>({status: 'COMPLETED'}) })
+        .mockResolvedValue({ok: true, json: async () => mockCleanData})
 
     render(<DataIngestion/>);
     fireEvent.change(screen.getByLabelText('Select Data File:'), { target: { files: [file] } })
@@ -70,19 +54,12 @@ test('renders clean data after job completes', async () => {
 
 });
 
-/**
- * This test simulates a faling cleaning job
- * 1. POST /api/ingest/upload - uploads the file
- * 2. POST /api/cleaning-jobs - creates the cleaning job
- * 3. GET /api/cleaning-jobs/{jobId} - retrieves the cleaning job status(FAILED)
- * alert will be called with the error message that is being checked for
- */
 test('Shows error during cleaning job', async () => {
 
     mockFetch
-        .mockResolvedValueOnce({ ok: true, text: async() => ''}) //POST upload
-        .mockResolvedValueOnce({ ok: true, json: async() =>({jobId: '1'}) }) //POST cleaning-jobs
-        .mockResolvedValueOnce({ ok: true, json: async() =>({status: 'FAILED'}) }) // GETcleaning job status
+        .mockResolvedValueOnce({ ok: true, text: async() => ''})
+        .mockResolvedValueOnce({ ok: true, json: async() =>({jobId: '1'}) })
+        .mockResolvedValueOnce({ ok: true, json: async() =>({status: 'FAILED'}) })
 
     render(<DataIngestion/>);
     fireEvent.change(screen.getByLabelText('Select Data File:'), { target: { files: [file] } })
@@ -94,10 +71,6 @@ test('Shows error during cleaning job', async () => {
 
 });
 
-/**
- * renders the data ingestion section\
- * uses the alert test double to receive message for no file selected.
- */
 test('Shows alert whenn no file is selected', async () => {
     render(<DataIngestion />);
     fireEvent.click(screen.getByText('Upload and Clean Data'));
