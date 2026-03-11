@@ -8,10 +8,11 @@
 
 SELECT 
     CustomerID,
-    MAX(InvoiceDate) AS LastPurchaseDate, -- raw recency
-    COUNT(DISTINCT Invoice) AS RawFrequency,-- raw frequency
-    SUM(Quantity * Price) AS RawMonetary, -- raw monetary
-    Country -- for filtering 
+    DATEDIFF(CURRENT_DATE, MAX(InvoiceDate)) AS Recency, -- recency
+    COUNT(DISTINCT Invoice) AS OrderID,,-- raw frequency
+    SUM(Quantity * Price) AS TotalAmount, -- raw monetary
+    Country, -- for filtering 
+    SQRT(SUM(Quantity * Price)) AS BubbleSize 
 FROM cleaned_online_retail_data
 WHERE CustomerID IS NOT NULL 
 -- allow backend to inject the filters from the UI
