@@ -139,6 +139,8 @@ integration-full-stack:
     - name: mariadb:10.6
       alias: database
   variables:
+    MYSQL_ROOT_PASSWORD: "pwd"
+    MYSQL_DATABASE: "template_db"
     DB_DATABASE: "template_db"
     DB_USER: "root"
     DB_PASSWORD: "pwd"
@@ -149,12 +151,19 @@ integration-full-stack:
     # Start backend with DB service (Gradle wrapper will use the env vars)
     - cd backend
     - export DB_ADDRESS="jdbc:mysql://database:3306" DB_DATABASE="$DB_DATABASE" DB_USER="$DB_USER" DB_PASSWORD="$DB_PASSWORD"
+    - mkdir -p /flyway/sql
+    - cp -R ../database/scripts/. /flyway/sql/
     - ./gradlew --no-daemon clean bootRun > ../integration/artifacts/backend-run.log 2>&1 &
     - echo $! > ../integration/artifacts/backend.pid || true
     - |
       i=1
       while [ $i -le 60 ]; do
-        if curl -sS --fail http://localhost:8080${BACKEND_READY_PATH:-/actuator/health} >/dev/null 2>&1; then
+        if ! kill -0 "$(cat ../integration/artifacts/backend.pid)" 2>/dev/null; then
+          echo "[error] backend process exited before becoming ready"
+          tail -n 200 ../integration/artifacts/backend-run.log || true
+          exit 1
+        fi
+        if curl -sS --fail http://localhost:8080${BACKEND_READY_PATH:-/api/docs.html} >/dev/null 2>&1; then
           echo "[ready] backend"
           break
         fi
@@ -162,7 +171,12 @@ integration-full-stack:
         i=$((i+1))
         sleep 2
       done
-    - test $i -le 60
+    - |
+      if [ $i -gt 60 ]; then
+        echo "[error] backend did not become ready in time"
+        tail -n 200 ../integration/artifacts/backend-run.log || true
+        exit 1
+      fi
     # Start frontend (React dev server)
     - cd ../frontend
     - npm ci
@@ -180,14 +194,18 @@ integration-full-stack:
         i=$((i+1))
         sleep 2
       done
-    - test $i -le 60
+    - |
+      if [ $i -gt 60 ]; then
+        echo "[error] frontend did not become ready in time"
+        tail -n 200 ../integration/artifacts/frontend-run.log || true
+        exit 1
+      fi
     # Run integration runner against localhost services
     - cd ..
-    - BACKEND_BASE_URL=http://localhost:8080 FRONTEND_BASE_URL=http://localhost:3000 node integration/run-integration-tests.mjs || true
+    - BACKEND_BASE_URL=http://localhost:8080 FRONTEND_BASE_URL=http://localhost:3000 node integration/run-integration-tests.mjs
   after_script:
-    - pkill -F integration/artifacts/backend.pid || true
-    - pkill -F integration/artifacts/frontend.pid || true
-    - docker ps -a || true
+    - if [ -f integration/artifacts/backend.pid ]; then kill "$(cat integration/artifacts/backend.pid)" || true; fi
+    - if [ -f integration/artifacts/frontend.pid ]; then kill "$(cat integration/artifacts/frontend.pid)" || true; fi
     - tar -czf integration/artifacts/logs.tar.gz integration/artifacts || true
   artifacts:
     when: always
