@@ -1,0 +1,10 @@
+{
+  "name": "rfm-integration-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node run-integration-tests.mjs",
+    "test:backend": "node run-integration-tests.mjs --scope=backend",
+    "test:frontend": "node run-integration-tests.mjs --scope=frontend"
+  }
+}

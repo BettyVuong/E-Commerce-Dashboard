@@ -2,6 +2,7 @@
 stages:
   - lint
   - test
+  - integration
 
 # Backend lint (Gradle/Checkstyle)
 lint-backend:
@@ -129,3 +130,69 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "push"'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - when: never
+
+# Full-stack integration tests (frontend + backend + database)
+integration-full-stack:
+  stage: integration
+  image: docker:24.0.7
+  services:
+    - name: docker:24.0.7-dind
+      command: ["--tls=false"]
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+    COMPOSE_PROJECT_NAME: "rfm-int-${CI_PIPELINE_ID}"
+  before_script:
+    - apk add --no-cache curl jq
+    - docker version
+    - docker compose version
+    - mkdir -p integration/artifacts/junit
+  script:
+    - docker compose -f compose.yaml up -d --build
+    - DB_CONTAINER_ID="$(docker compose -f compose.yaml ps -q database)"
+    - test -n "$DB_CONTAINER_ID"
+    - |
+      i=1
+      while [ "$i" -le 60 ]; do
+        status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$DB_CONTAINER_ID")"
+        if [ "$status" = "healthy" ] || [ "$status" = "running" ]; then
+          echo "[ready] database container status=${status}"
+          break
+        fi
+        echo "[wait] database container status=${status} (${i}/60)"
+        i=$((i + 1))
+        sleep 2
+      done
+    - |
+      test "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$DB_CONTAINER_ID")" = "healthy" \
+      || test "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$DB_CONTAINER_ID")" = "running"
+    - |
+      docker run --rm \
+      --network "${COMPOSE_PROJECT_NAME}_backend-frontend" \
+      -v "$CI_PROJECT_DIR:/workspace" \
+      -w /workspace \
+      -e BACKEND_BASE_URL="http://backend:8080" \
+      -e FRONTEND_BASE_URL="http://frontend:3000" \
+      node:20-alpine \
+      sh -lc "node integration/run-integration-tests.mjs"
+  after_script:
+    - docker compose -f compose.yaml ps > integration/artifacts/compose-ps.txt || true
+    - docker compose -f compose.yaml logs backend > integration/artifacts/backend.log || true
+    - docker compose -f compose.yaml logs frontend > integration/artifacts/frontend.log || true
+    - docker compose -f compose.yaml logs database > integration/artifacts/database.log || true
+    - docker compose -f compose.yaml logs > integration/artifacts/container-logs.log || true
+    - docker compose -f compose.yaml down -v || true
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - integration/artifacts/junit/*.xml
+    paths:
+      - integration/artifacts/
+    expire_in: 2 weeks
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: always
+  allow_failure: false
