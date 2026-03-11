@@ -1,3 +1,19 @@
+/*
+  run-integration-tests.mjs
+
+  Purpose: lightweight, cross-platform Node runner for full-stack
+  integration tests. Responsibilities:
+  - wait for backend/frontend readiness
+  - discover and run all `*.test.mjs` files under `integration/tests`
+  - write JUnit XML to `integration/artifacts/junit/`
+
+  Notes:
+  - This runner is intentionally framework-only; feature logic belongs
+    in files under `integration/tests/**`.
+  - CI may run this runner in two modes: compose/DinD (preferred) or
+    non-DinD fallback (job container starts backend/frontend + DB service).
+*/
+
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -5,17 +21,24 @@ import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// Root and artifact paths used by the runner. Tests must write JUnit
+// output under `integration/artifacts/junit` so CI can collect it.
 const ROOT_DIR = path.resolve(__dirname, "..");
 const ARTIFACT_DIR = path.join(ROOT_DIR, "integration", "artifacts");
 const JUNIT_FILE = path.join(ARTIFACT_DIR, "junit", "integration-tests.xml");
 const TESTS_ROOT = path.join(ROOT_DIR, "integration", "tests");
 
+// Default service base URLs and readiness probe paths. CI can override
+// these via environment variables when running in different modes.
 const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL ?? "http://localhost:8080";
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL ?? "http://localhost:3000";
+// The backend exposes Swagger docs at `/api/v3/api-docs/swagger-config` in
+// this project; using that for a non-invasive readiness probe is reliable.
 const BACKEND_READY_PATH = process.env.BACKEND_READY_PATH ?? "/api/v3/api-docs/swagger-config";
 const FRONTEND_READY_PATH = process.env.FRONTEND_READY_PATH ?? "/";
 const FRONTEND_PROXY_READY_PATH = process.env.FRONTEND_PROXY_READY_PATH ?? "/api/v3/api-docs/swagger-config";
 
+// Small utility to pause between retries/timeouts.
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function xmlEscape(value) {
@@ -32,6 +55,8 @@ async function ensureArtifactDirs() {
 }
 
 async function http(method, url, { headers = {}, body } = {}) {
+  // Thin HTTP helper that returns status, raw text and parsed JSON (if any).
+  // Tests and helpers use this to simplify assertions.
   const response = await fetch(url, { method, headers, body });
   const text = await response.text();
   let json = null;
@@ -50,6 +75,8 @@ async function http(method, url, { headers = {}, body } = {}) {
 }
 
 async function waitForReachable({ name, url, attempts = 60, delayMs = 2000 }) {
+  // Poll the provided URL until it returns a 2xx status or the timeout
+  // is reached. Logging includes the attempt count to help triage.
   for (let i = 1; i <= attempts; i += 1) {
     try {
       const res = await fetch(url, { method: "GET" });
@@ -133,6 +160,8 @@ async function loadDiscoveredTests(ctx) {
 
   for (const testFile of testFiles) {
     const moduleUrl = pathToFileURL(testFile).href;
+    // Dynamically import the test module so contributors can add files
+    // without touching the runner. Each module must export `defineTests(ctx)`.
     const testModule = await import(moduleUrl);
 
     if (typeof testModule.defineTests !== "function") {
@@ -170,6 +199,7 @@ async function writeJUnit(results) {
 
   const xml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<testsuite name=\"full-integration\" tests=\"${results.length}\" failures=\"${failures}\">\n${testCasesXml}\n</testsuite>\n`;
 
+  // Persist JUnit XML to the artifact location so CI can publish test results.
   await writeFile(JUNIT_FILE, xml, "utf8");
 }
 
@@ -200,6 +230,7 @@ async function main() {
       results.push({ name: test.name, passed: true });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
+      // Print failure reason for quick triage in CI logs.
       process.stdout.write(`[fail] ${test.name}: ${errorMessage}\n`);
       results.push({ name: test.name, passed: false, errorMessage });
     }

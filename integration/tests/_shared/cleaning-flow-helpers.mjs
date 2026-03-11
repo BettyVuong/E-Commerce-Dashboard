@@ -1,3 +1,11 @@
+/*
+  cleaning-flow-helpers.mjs
+
+  Shared helpers for cleaning feature integration tests.
+  - `getDirtyTotal`, `uploadFixture`, `createCleaningJob`, `waitForCompletedCleaningJob`
+  These helpers encapsulate API flows and fixture handling so tests remain concise.
+*/
+
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +16,9 @@ const INTEGRATION_DIR = path.resolve(__dirname, "..", "..");
 const FIXTURE_FILE = path.join(INTEGRATION_DIR, "fixtures", "retail-smoke.csv");
 
 export async function getDirtyTotal(ctx, baseUrl) {
+  // Query the backend API for the dirty-data list and return the
+  // reported `totalEntries` number. Tests use this to assert persisted
+  // counts before/after flows.
   const res = await ctx.http("GET", `${baseUrl}/api/cleaning-data/dirty?page=0&size=15`);
   if (res.status !== 200 || !res.json) {
     throw new Error(`dirty total lookup failed with HTTP ${res.status}`);
@@ -17,6 +28,8 @@ export async function getDirtyTotal(ctx, baseUrl) {
 }
 
 export async function uploadFixture(ctx, baseUrl) {
+  // Build a multipart/form-data upload using in-memory Blob so the test
+  // can post the fixture file to the ingest endpoint like a browser would.
   const form = new FormData();
   const fixtureBlob = new Blob([await readFile(FIXTURE_FILE, "utf8")], {
     type: "text/csv"
@@ -30,6 +43,8 @@ export async function uploadFixture(ctx, baseUrl) {
 }
 
 export async function createCleaningJob(ctx, baseUrl, batchSize = 2000) {
+  // Kick off an async cleaning job and return the job ID. The service
+  // returns 202 Accepted for async processing and a `jobId` in the body.
   const res = await ctx.http("POST", `${baseUrl}/api/cleaning-jobs`, {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ batchSize })
@@ -43,6 +58,8 @@ export async function createCleaningJob(ctx, baseUrl, batchSize = 2000) {
 }
 
 export async function waitForCompletedCleaningJob(ctx, baseUrl, jobId, attempts = 120) {
+  // Poll the cleaning-job status until it reaches COMPLETED or FAILED.
+  // Tests use a generous default `attempts` to accommodate slower CI VMs.
   for (let i = 1; i <= attempts; i += 1) {
     const res = await ctx.http("GET", `${baseUrl}/api/cleaning-jobs/${jobId}`);
     if (res.status !== 200 || !res.json) {
