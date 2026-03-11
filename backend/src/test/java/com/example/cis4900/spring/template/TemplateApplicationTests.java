@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import com.example.cis4900.spring.template.ingest.repository.DirtyDataRepository;
+import com.example.cis4900.spring.template.rfm.repository.RfmRepository;
+
 import org.springframework.boot.test.mock.mockito.MockBean;
 
 // Exclude datasource and Flyway auto-configuration so the test doesn't require a database
@@ -21,8 +23,11 @@ class TemplateApplicationTests {
     @MockBean
     private DirtyDataRepository dirtyDataRepository;
 
-    // @Test
-    // void contextLoads() {
-    //     // simple smoke test;
-    // }
+    @MockBean
+    private RfmRepository rfmRepository;
+    
+    @Test
+    void contextLoads() {
+        // simple smoke test;
+    }
 }
