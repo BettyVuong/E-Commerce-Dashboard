@@ -2,6 +2,7 @@
 stages:
   - lint
   - test
+  - integration
 
 # Backend lint (Gradle/Checkstyle)
 lint-backend:
@@ -129,3 +130,112 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "push"'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - when: never
+
+# Full-stack integration tests (frontend + backend + database)
+integration-full-stack:
+  stage: integration
+  image: node:20-bullseye
+  services:
+    - name: mariadb:10.6
+      alias: database
+  variables:
+    MYSQL_ROOT_PASSWORD: "pwd"
+    MYSQL_DATABASE: "template_db"
+    DB_DATABASE: "template_db"
+    DB_USER: "root"
+    DB_PASSWORD: "pwd"
+  before_script:
+    - apt-get update -y && apt-get install -y openjdk-17-jdk curl jq mariadb-client
+    - mkdir -p integration/artifacts/junit
+  script:
+    # Wait for DB service and seed baseline schema/data expected before Flyway V2+
+    - |
+      i=1
+      while [ $i -le 60 ]; do
+        if mariadb-admin ping -h database -uroot -p"$DB_PASSWORD" --silent; then
+          echo "[ready] database"
+          break
+        fi
+        echo "[wait] database (${i}/60)"
+        i=$((i+1))
+        sleep 2
+      done
+    - |
+      if [ $i -gt 60 ]; then
+        echo "[error] database did not become ready in time"
+        exit 1
+      fi
+    - mariadb -h database -uroot -p"$DB_PASSWORD" "$DB_DATABASE" < database/scripts/setup.sql
+    # Start backend with DB service (Gradle wrapper will use the env vars)
+    - cd backend
+    - export DB_ADDRESS="jdbc:mysql://database:3306" DB_DATABASE="$DB_DATABASE" DB_USER="$DB_USER" DB_PASSWORD="$DB_PASSWORD"
+    - mkdir -p /flyway/sql
+    - cp -R ../database/scripts/. /flyway/sql/
+    - ./gradlew --no-daemon clean bootRun > ../integration/artifacts/backend-run.log 2>&1 &
+    - echo $! > ../integration/artifacts/backend.pid || true
+    - |
+      i=1
+      while [ $i -le 60 ]; do
+        if ! kill -0 "$(cat ../integration/artifacts/backend.pid)" 2>/dev/null; then
+          echo "[error] backend process exited before becoming ready"
+          tail -n 200 ../integration/artifacts/backend-run.log || true
+          exit 1
+        fi
+        if curl -sS --fail http://localhost:8080${BACKEND_READY_PATH:-/api/docs.html} >/dev/null 2>&1; then
+          echo "[ready] backend"
+          break
+        fi
+        echo "[wait] backend (${i}/60)"
+        i=$((i+1))
+        sleep 2
+      done
+    - |
+      if [ $i -gt 60 ]; then
+        echo "[error] backend did not become ready in time"
+        tail -n 200 ../integration/artifacts/backend-run.log || true
+        exit 1
+      fi
+    # Start frontend (React dev server)
+    - cd ../frontend
+    - npm ci
+    - export BACKEND_PROXY="http://localhost:8080"
+    - npm run start > ../integration/artifacts/frontend-run.log 2>&1 &
+    - echo $! > ../integration/artifacts/frontend.pid || true
+    - |
+      i=1
+      while [ $i -le 60 ]; do
+        if curl -sS --fail http://localhost:3000${FRONTEND_READY_PATH:-/} >/dev/null 2>&1; then
+          echo "[ready] frontend"
+          break
+        fi
+        echo "[wait] frontend (${i}/60)"
+        i=$((i+1))
+        sleep 2
+      done
+    - |
+      if [ $i -gt 60 ]; then
+        echo "[error] frontend did not become ready in time"
+        tail -n 200 ../integration/artifacts/frontend-run.log || true
+        exit 1
+      fi
+    # Run integration runner against localhost services
+    - cd ..
+    - BACKEND_BASE_URL=http://localhost:8080 FRONTEND_BASE_URL=http://localhost:3000 node integration/run-integration-tests.mjs
+  after_script:
+    - if [ -f integration/artifacts/backend.pid ]; then kill "$(cat integration/artifacts/backend.pid)" || true; fi
+    - if [ -f integration/artifacts/frontend.pid ]; then kill "$(cat integration/artifacts/frontend.pid)" || true; fi
+    - tar -czf integration/artifacts/logs.tar.gz integration/artifacts || true
+  artifacts:
+    when: always
+    reports:
+      junit:
+        - integration/artifacts/junit/*.xml
+    paths:
+      - integration/artifacts/
+    expire_in: 2 weeks
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: always
+  allow_failure: false

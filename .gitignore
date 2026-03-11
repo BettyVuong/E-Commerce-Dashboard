@@ -129,6 +129,9 @@ gradle-app.setting
 
 ipynb_checkpoints
 
+# Integration test runtime artifacts
+integration/artifacts/
+
 # Allow Gradle wrapper JAR (needed for ./gradlew to run)
 !backend/gradle/wrapper/gradle-wrapper.jar
 
