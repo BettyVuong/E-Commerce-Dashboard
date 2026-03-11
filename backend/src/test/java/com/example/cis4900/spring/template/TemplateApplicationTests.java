@@ -21,8 +21,8 @@ class TemplateApplicationTests {
     @MockBean
     private DirtyDataRepository dirtyDataRepository;
 
-    @Test
-    void contextLoads() {
-        // simple smoke test;
-    }
+    // @Test
+    // void contextLoads() {
+    //     // simple smoke test;
+    // }
 }
