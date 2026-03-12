@@ -10,7 +10,9 @@ import java.time.LocalDateTime;
 
 @Repository
 public interface RfmRepository extends JpaRepository<com.example.cis4900.spring.template.cleaning.model.CleanedRetailRecord, Long> {
-
+    /**
+    * Native Query for RFM analysis.
+    */
     @Query(value = """
         SELECT 
             CustomerID,
