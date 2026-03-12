@@ -8,7 +8,7 @@ import java.util.List;
 import java.time.LocalDateTime;
 
 @org.springframework.stereotype.Repository
-public interface RfmRepository extends Repository<Object, Long> {
+public interface RfmRepository extends Repository<RfmMetric, Long> {
     /**
     * Native Query for RFM analysis.
     */
