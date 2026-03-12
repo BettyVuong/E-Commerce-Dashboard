@@ -1,20 +1,68 @@
 package com.example.cis4900.spring.template.rfm.model;
 
-import java.math.BigDecimal;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 
-/**
- * interface based projection to hold results of RFM aggregation query.
- */
-public interface RfmMetric {
-    Integer getCustomerID();
+@Entity
+@Table(name = "rfm_metrics")
+public class RfmMetric {
 
-    Integer getRecency(); // x-axis: number of days
+    @Id
+    private String customerId;
+    private Double recency;
+    private Integer frequency;
+    private Double monetary;
+    private String country;
+    private Double bubbleSize;
 
-    Long getOrderID(); // y-axis frequency    
+    public RfmMetric() {}
 
-    BigDecimal getTotalAmount();  // raw monetary value for hover
+    public String getCustomerId() { 
+        return customerId; 
+    }
 
-    String getCountry();
+    public void setCustomerId(String customerId) { 
+        this.customerId = customerId; 
+    }
 
-    Double getBubbleSize(); // normalize scale
+    public Double getRecency() { 
+        return recency; 
+    }
+
+    public void setRecency(Double recency) { 
+        this.recency = recency; 
+    }
+
+    public Integer getFrequency() { 
+        return frequency; 
+    }
+
+    public void setFrequency(Integer frequency) { 
+        this.frequency = frequency; 
+    }
+
+    public Double getMonetary() { 
+        return monetary; 
+    }
+
+    public void setMonetary(Double monetary) { 
+        this.monetary = monetary; 
+    }
+
+    public String getCountry() { 
+        return country; 
+    }
+
+    public void setCountry(String country) { 
+        this.country = country; 
+    }
+
+    public Double getBubbleSize() { 
+        return bubbleSize; 
+    }
+
+    public void setBubbleSize(Double bubbleSize) { 
+        this.bubbleSize = bubbleSize; 
+    }
 }

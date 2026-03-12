@@ -1,23 +1,25 @@
 package com.example.cis4900.spring.template.rfm.repository;
 
 import com.example.cis4900.spring.template.rfm.model.RfmMetric;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
-import java.util.List;
-import java.time.LocalDateTime;
+import org.springframework.stereotype.Repository;
 
-@org.springframework.stereotype.Repository
-public interface RfmRepository extends Repository<RfmMetric, Long> {
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Repository
+public interface RfmRepository extends JpaRepository<RfmMetric, String> {
     /**
     * Native Query for RFM analysis.
     */
     @Query(value = """
         SELECT 
-            CustomerID AS customerID,
+            CustomerID AS customerId,
             DATEDIFF(CURRENT_DATE, MAX(InvoiceDate)) AS recency,
-            COUNT(DISTINCT Invoice) AS orderID,
-            SUM(Quantity * Price) AS totalAmount,
+            COUNT(DISTINCT Invoice) AS frequency,
+            SUM(Quantity * Price) AS monetary,
             Country AS country,
             -- Normalization Logic: SQRT handles the variance so bubbles look good
             SQRT(SUM(Quantity * Price)) AS bubbleSize 
