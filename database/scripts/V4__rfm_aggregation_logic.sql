@@ -9,7 +9,7 @@
 SELECT 
     CustomerID,
     DATEDIFF(CURRENT_DATE, MAX(InvoiceDate)) AS Recency, -- recency
-    COUNT(DISTINCT Invoice) AS OrderID,,-- raw frequency
+    COUNT(DISTINCT Invoice) AS OrderID,-- raw frequency
     SUM(Quantity * Price) AS TotalAmount, -- raw monetary
     Country, -- for filtering 
     SQRT(SUM(Quantity * Price)) AS BubbleSize 
