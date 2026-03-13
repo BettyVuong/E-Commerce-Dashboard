@@ -32,8 +32,8 @@ public class OnlineRetailCleaningDataController {
 
     private static final int DEFAULT_SIZE = 15;
     private static final Set<Integer> ALLOWED_SIZES = Set.of(15, 25, 50, 100);
-    //Constants for exporting excel header
-    private static final MediaType XLSX_MEDIA_TYPE = MediaType.parseMediaType( 
+    // Constants for exporting excel header
+    private static final MediaType XLSX_MEDIA_TYPE = MediaType.parseMediaType(
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
     private static final String EXPORT_FILE_NAME = "cleaned-data.xlsx";

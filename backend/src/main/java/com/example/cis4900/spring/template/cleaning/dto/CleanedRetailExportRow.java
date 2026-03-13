@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 /**
  * File-facing projection for cleaned data export.
  */
-public record CleanedRetailExportRow(    
+public record CleanedRetailExportRow(
     String invoice,
     String stockCode,
     String description,
@@ -14,4 +14,5 @@ public record CleanedRetailExportRow(
     LocalDateTime invoiceDate,
     BigDecimal unitPrice,
     Integer customerId,
-    String country) {}
+    String country
+) {}

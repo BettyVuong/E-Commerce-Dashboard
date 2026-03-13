@@ -15,17 +15,17 @@ import org.springframework.stereotype.Service;
 public class OnlineRetailCleaningExportService {
 
     private static final String SHEET_NAME = "cleaned_data";
-    private static final DateTimeFormatter EXPORT_DATE_FORMAT = 
-      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter EXPORT_DATE_FORMAT =
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     // Stores DB helper the service will use
     private final JdbcTemplate jdbcTemplate;
     // Spring supplies JdbcTemplate
+
     public OnlineRetailCleaningExportService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-   
     public List<CleanedRetailExportRow> getExportRows() {
         return jdbcTemplate.query(
             """
