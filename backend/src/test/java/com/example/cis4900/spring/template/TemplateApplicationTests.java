@@ -1,5 +1,6 @@
 package com.example.cis4900.spring.template;
 
+import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningExportService;
 import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningPipelineService;
 import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningQueryService;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,10 @@ class TemplateApplicationTests {
 
     @MockBean
     private OnlineRetailCleaningQueryService cleaningQueryService;
+
+    @MockBean
+    private OnlineRetailCleaningExportService cleaningExportService;
+
 
     @MockBean
     private DirtyDataRepository dirtyDataRepository;
