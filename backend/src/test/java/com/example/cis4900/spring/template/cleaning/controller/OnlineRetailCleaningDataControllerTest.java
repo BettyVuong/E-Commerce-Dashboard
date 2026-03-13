@@ -5,12 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.example.cis4900.spring.template.cleaning.dto.CleanedRetailDataItem;
-import com.example.cis4900.spring.template.cleaning.dto.CleanedRetailExportRow;
 import com.example.cis4900.spring.template.cleaning.dto.DirtyRetailDataItem;
 import com.example.cis4900.spring.template.cleaning.dto.ManualReviewItem;
 import com.example.cis4900.spring.template.cleaning.dto.PagedResponse;
 import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningExportService;
 import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningQueryService;
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -21,6 +21,7 @@ import org.mockito.Mockito;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
  * Unit tests for pagination endpoint request validation and response wiring.
@@ -65,6 +66,7 @@ class OnlineRetailCleaningDataControllerTest {
         ResponseEntity<PagedResponse<CleanedRetailDataItem>> response =
             controller.getCleanedDataPage(0, null);
 
+        // Missing size should default to the smallest supported page size.
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(15, response.getBody().size());
         Mockito.verify(queryService).getCleanedDataPage(0, 15);
@@ -79,27 +81,24 @@ class OnlineRetailCleaningDataControllerTest {
             OnlineRetailCleaningExportService.class
         );
 
-        Mockito.when(exportService.getExportRows()).thenReturn(List.of());
+        // Stop before opening a streamed response when no rows exist
+        Mockito.when(exportService.hasExportRows()).thenReturn(false);
 
         OnlineRetailCleaningDataController controller = createController(
             queryService,
             exportService
         );
 
-        ResponseEntity<Object> response = controller.exportCleanedData();
+        ResponseEntity<StreamingResponseBody> response = controller.exportCleanedData();
 
         assertEquals(404, response.getStatusCodeValue());
-        assertEquals(MediaType.APPLICATION_JSON, response.getHeaders().getContentType());
-        assertEquals(
-            Map.of("message", "No cleaned data available to export."),
-            response.getBody()
-        );
-        Mockito.verify(exportService).getExportRows();
-        Mockito.verify(exportService, Mockito.never()).buildWorkbook(Mockito.anyList());
+        assertEquals(null, response.getBody());
+        Mockito.verify(exportService).hasExportRows();
+        Mockito.verify(exportService, Mockito.never()).writeWorkbook(Mockito.any());
     }
 
     @Test
-    void exportCleanedData_returnsWorkbookBytes_whenRowsExist() {
+    void exportCleanedData_streamsWorkbookBytes_whenRowsExist() throws Exception {
         OnlineRetailCleaningQueryService queryService = Mockito.mock(
             OnlineRetailCleaningQueryService.class
         );
@@ -108,28 +107,19 @@ class OnlineRetailCleaningDataControllerTest {
         );
         byte[] workbookBytes = new byte[] {1, 2, 3, 4};
 
-        List<CleanedRetailExportRow> rows = List.of(
-            new CleanedRetailExportRow(
-                "INV-1",
-                "85123A",
-                "Item",
-                2,
-                LocalDateTime.of(2020, 1, 1, 8, 30),
-                new BigDecimal("9.99"),
-                12345,
-                "United Kingdom"
-            )
-        );
-
-        Mockito.when(exportService.getExportRows()).thenReturn(rows);
-        Mockito.when(exportService.buildWorkbook(Mockito.anyList())).thenReturn(workbookBytes);
+        // Pretend the service wrote workbook bytes into the response stream
+        Mockito.when(exportService.hasExportRows()).thenReturn(true);
+        Mockito.doAnswer(invocation -> {
+            invocation.<java.io.OutputStream>getArgument(0).write(workbookBytes);
+            return null;
+        }).when(exportService).writeWorkbook(Mockito.any());
 
         OnlineRetailCleaningDataController controller = createController(
             queryService,
             exportService
         );
 
-        ResponseEntity<Object> response = controller.exportCleanedData();
+        ResponseEntity<StreamingResponseBody> response = controller.exportCleanedData();
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(
@@ -142,13 +132,17 @@ class OnlineRetailCleaningDataControllerTest {
             "attachment; filename=\"cleaned-data.xlsx\"",
             response.getHeaders().getFirst("Content-Disposition")
         );
-        assertArrayEquals(workbookBytes, (byte[]) response.getBody());
-        Mockito.verify(exportService).getExportRows();
-        Mockito.verify(exportService).buildWorkbook(rows);
+
+        // Execute the streaming callback and capture the bytes
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        response.getBody().writeTo(outputStream);
+        assertArrayEquals(workbookBytes, outputStream.toByteArray());
+        Mockito.verify(exportService).hasExportRows();
+        Mockito.verify(exportService).writeWorkbook(Mockito.any());
     }
 
     @Test
-    void exportCleanedData_returnsInternalServerError_whenWorkbookCreationFails() {
+    void exportCleanedData_propagatesStreamingFailure_whenWorkbookCreationFails() {
         OnlineRetailCleaningQueryService queryService = Mockito.mock(
             OnlineRetailCleaningQueryService.class
         );
@@ -156,39 +150,27 @@ class OnlineRetailCleaningDataControllerTest {
             OnlineRetailCleaningExportService.class
         );
 
-        List<CleanedRetailExportRow> rows = List.of(
-            new CleanedRetailExportRow(
-                "INV-1",
-                "85123A",
-                "Item",
-                2,
-                LocalDateTime.of(2020, 1, 1, 8, 30),
-                new BigDecimal("9.99"),
-                12345,
-                "United Kingdom"
-            )
-        );
-
-        Mockito.when(exportService.getExportRows()).thenReturn(rows);
-        Mockito.when(exportService.buildWorkbook(Mockito.anyList())).thenThrow(
+        // Streaming failures happen when the callback is executed
+        Mockito.when(exportService.hasExportRows()).thenReturn(true);
+        Mockito.doThrow(
             new IllegalStateException("boom")
-        );
+        ).when(exportService).writeWorkbook(Mockito.any());
 
         OnlineRetailCleaningDataController controller = createController(
             queryService,
             exportService
         );
 
-        ResponseEntity<Object> response = controller.exportCleanedData();
+        ResponseEntity<StreamingResponseBody> response = controller.exportCleanedData();
 
-        assertEquals(500, response.getStatusCodeValue());
-        assertEquals(MediaType.APPLICATION_JSON, response.getHeaders().getContentType());
-        assertEquals(
-            Map.of("message", "Failed to export cleaned data."),
-            response.getBody()
+        IllegalStateException exception = assertThrows(
+            IllegalStateException.class,
+            () -> response.getBody().writeTo(new ByteArrayOutputStream())
         );
-        Mockito.verify(exportService).getExportRows();
-        Mockito.verify(exportService).buildWorkbook(rows);
+
+        assertEquals("boom", exception.getMessage());
+        Mockito.verify(exportService).hasExportRows();
+        Mockito.verify(exportService).writeWorkbook(Mockito.any());
     }
 
     @Test
@@ -203,6 +185,7 @@ class OnlineRetailCleaningDataControllerTest {
             () -> controller.getManualReviewPage(0, 10, null)
         );
 
+        // Unsupported sizes are rejected before the query layer is called.
         assertEquals(400, exception.getStatusCode().value());
         Mockito.verifyNoInteractions(queryService);
     }
@@ -249,6 +232,7 @@ class OnlineRetailCleaningDataControllerTest {
 
     @Test
     void getManualReviewPage_passesReviewStatusFilterToQueryService() {
+        // Confirms optional query param is forwarded unchanged to service layer.
         OnlineRetailCleaningQueryService queryService = Mockito.mock(
             OnlineRetailCleaningQueryService.class
         );
@@ -275,6 +259,7 @@ class OnlineRetailCleaningDataControllerTest {
 
     @Test
     void getDirtyDataPage_usesDefaultPageSize_whenSizeNotProvided() {
+        // Dirty endpoint should follow same default page-size rule as other tabs.
         OnlineRetailCleaningQueryService queryService = Mockito.mock(
             OnlineRetailCleaningQueryService.class
         );
@@ -324,6 +309,7 @@ class OnlineRetailCleaningDataControllerTest {
             () -> controller.getCleanedDataPage(-1, 15)
         );
 
+        // Negative pages should be rejected consistently for both endpoints.
         assertEquals(400, exception.getStatusCode().value());
         Mockito.verifyNoInteractions(queryService);
     }

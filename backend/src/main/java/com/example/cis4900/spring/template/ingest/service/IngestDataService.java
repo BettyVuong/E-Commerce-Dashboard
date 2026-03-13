@@ -150,22 +150,27 @@ public class IngestDataService {
                 throw new RuntimeException("Excel file is empty or only contains headers");
             }
 
-            try (java.io.InputStream firstSheet = sheets.next()) {
-                // SAX parsing keeps memory bounded for very large spreadsheets.
-                XMLReader parser = SAXHelper.newXMLReader();
-                XSSFSheetXMLHandler handler = new XSSFSheetXMLHandler(
-                    styles,
-                    null,
-                    sharedStrings,
-                    rowHandler,
-                    dataFormatter,
-                    false
-                );
+            // Parse every worksheet in the workbook
+            while (sheets.hasNext()) {
+                try (java.io.InputStream sheetStream = sheets.next()) {
+                    // SAX parsing keeps memory bounded for very large spreadsheets.
+                    XMLReader parser = SAXHelper.newXMLReader();
+                    XSSFSheetXMLHandler handler = new XSSFSheetXMLHandler(
+                        styles,
+                        null,
+                        sharedStrings,
+                        rowHandler,
+                        dataFormatter,
+                        false
+                    );
 
-                parser.setContentHandler(handler);
-                parser.parse(new InputSource(firstSheet));
-                rowHandler.flushRemaining();
+                    parser.setContentHandler(handler);
+                    parser.parse(new InputSource(sheetStream));
+                }
             }
+
+            // Flush any rows still buffered after the final sheet
+            rowHandler.flushRemaining();
         } catch (RecordFormatException e) {
             throw new IllegalArgumentException("Excel file is too large or malformed. Please upload a smaller valid .xlsx file.", e);
         } catch (OpenXML4JException | SAXException | ParserConfigurationException | IOException e) {
