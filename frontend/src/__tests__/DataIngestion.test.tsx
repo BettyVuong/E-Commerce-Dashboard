@@ -6,6 +6,25 @@ import '@testing-library/jest-dom';
 // Mock the global fetch API
 global.fetch = jest.fn() as jest.Mock;
 
+// Mock RFMScatterPlot so tests don't need recharts/fetch wiring for it
+jest.mock('../components/RFMScatterPlot', () => ({
+    RFMScatterPlot: ({
+        initialStartDate,
+        initialEndDate,
+        initialCountry,
+    }: {
+        initialStartDate?: string;
+        initialEndDate?: string;
+        initialCountry?: string;
+    }) => (
+        <div data-testid="rfm-scatter-plot">
+            <span data-testid="rfm-start">{initialStartDate}</span>
+            <span data-testid="rfm-end">{initialEndDate}</span>
+            <span data-testid="rfm-country">{initialCountry}</span>
+        </div>
+    ),
+}));
+
 describe('DataIngestion Component Unit Tests', () => {
 
     beforeEach(() => {
@@ -22,6 +41,22 @@ describe('DataIngestion Component Unit Tests', () => {
         });
         const uploadBtn = screen.getByRole('button', { name: /Upload and Clean Data/i });
         await waitFor(() => expect(uploadBtn).not.toBeDisabled());
+    };
+
+    // Helper to go through the full flow to results with provided mock data for results
+    const goToResults = async (mockData: object) => {
+        (global.fetch as jest.Mock).mockResolvedValue({
+            ok: true,
+            json: async () => mockData,
+        });
+        render(<DataIngestion />);
+        const file = new File(['test'], 'test.csv', { type: 'text/csv' });
+        const input = screen.getByLabelText(/Select Data File:/i);
+        await simulateFileUpload(input, file);
+        await act(async () => {
+            fireEvent.click(screen.getByRole('button', { name: /Upload and Clean Data/i }));
+        });
+        await waitFor(() => expect(screen.getByText(/Results/i)).toBeInTheDocument());
     };
 
     // Initial Render
@@ -267,5 +302,127 @@ describe('DataIngestion Component Unit Tests', () => {
         fireEvent.click(dirtyTab);
 
         expect(screen.getByText(/Uncleaned Raw Data/i)).toBeInTheDocument();
+    });
+
+    // #75: NEW RFM tab tests to cover new implementation
+    test('renders the RFM Scatter Plot tab button in results', async () => {
+        await goToResults({ entries: [], totalEntries: 0, status: 'COMPLETED' });
+        expect(screen.getByRole('button', { name: /RFM Scatter Plot/i })).toBeInTheDocument();
+    });
+ 
+    test('clicking RFM tab renders the RFMScatterPlot component', async () => {
+        await goToResults({ entries: [], totalEntries: 0, status: 'COMPLETED' });
+        fireEvent.click(screen.getByRole('button', { name: /RFM Scatter Plot/i }));
+        expect(screen.getByTestId('rfm-scatter-plot')).toBeInTheDocument();
+    });
+ 
+    test('passes derived date range from clean data to RFMScatterPlot', async () => {
+        const mockData = {
+            entries: [
+                { invoice: 'INV001', invoiceDate: '2020-03-15T00:00:00', country: 'United Kingdom' },
+                { invoice: 'INV002', invoiceDate: '2021-11-20T00:00:00', country: 'United Kingdom' },
+            ],
+            totalEntries: 2,
+            status: 'COMPLETED',
+        };
+        await goToResults(mockData);
+ 
+        fireEvent.click(screen.getByRole('button', { name: /RFM Scatter Plot/i }));
+ 
+        await waitFor(() => {
+            expect(screen.getByTestId('rfm-start')).toHaveTextContent('2020-03-15');
+            expect(screen.getByTestId('rfm-end')).toHaveTextContent('2021-11-20');
+        });
+    });
+ 
+    test('passes most common country from clean data to RFMScatterPlot', async () => {
+        const mockData = {
+            entries: [
+                { invoice: 'INV001', invoiceDate: '2020-01-01T00:00:00', country: 'Germany' },
+                { invoice: 'INV002', invoiceDate: '2020-02-01T00:00:00', country: 'Germany' },
+                { invoice: 'INV003', invoiceDate: '2020-03-01T00:00:00', country: 'France' },
+            ],
+            totalEntries: 3,
+            status: 'COMPLETED',
+        };
+        await goToResults(mockData);
+ 
+        fireEvent.click(screen.getByRole('button', { name: /RFM Scatter Plot/i }));
+ 
+        await waitFor(() => {
+            // Germany appears twice vs France once — should be passed as initialCountry
+            expect(screen.getByTestId('rfm-country')).toHaveTextContent('Germany');
+        });
+    });
+ 
+    test('passes empty strings to RFMScatterPlot when clean data has no dates', async () => {
+        const mockData = {
+            entries: [
+                { invoice: 'INV001', invoiceDate: undefined, country: 'UK' },
+            ],
+            totalEntries: 1,
+            status: 'COMPLETED',
+        };
+        await goToResults(mockData);
+ 
+        fireEvent.click(screen.getByRole('button', { name: /RFM Scatter Plot/i }));
+ 
+        await waitFor(() => {
+            expect(screen.getByTestId('rfm-start')).toHaveTextContent('');
+            expect(screen.getByTestId('rfm-end')).toHaveTextContent('');
+        });
+    });
+ 
+    test('switching away from RFM tab and back still renders the component', async () => {
+        await goToResults({ entries: [], totalEntries: 0, status: 'COMPLETED' });
+ 
+        fireEvent.click(screen.getByRole('button', { name: /RFM Scatter Plot/i }));
+        expect(screen.getByTestId('rfm-scatter-plot')).toBeInTheDocument();
+ 
+        fireEvent.click(screen.getByRole('button', { name: /Invalid Items/i }));
+        expect(screen.queryByTestId('rfm-scatter-plot')).not.toBeInTheDocument();
+ 
+        fireEvent.click(screen.getByRole('button', { name: /RFM Scatter Plot/i }));
+        expect(screen.getByTestId('rfm-scatter-plot')).toBeInTheDocument();
+    });
+
+    test('handles clean data with mixed valid and invalid date formats', async () => {
+        const mockData = {
+            entries: [
+                { invoice: 'INV001', invoiceDate: '2021-06-01T00:00:00', country: 'UK' },
+                { invoice: 'INV002', invoiceDate: 'not-a-date',           country: 'UK' },
+                { invoice: 'INV003', invoiceDate: null,                   country: 'UK' },
+            ],
+            totalEntries: 3,
+            status: 'COMPLETED',
+        };
+        await goToResults(mockData);
+ 
+        fireEvent.click(screen.getByRole('button', { name: /RFM Scatter Plot/i }));
+ 
+        await waitFor(() => {
+            // Only the valid date should be used for both start and end
+            expect(screen.getByTestId('rfm-start')).toHaveTextContent('2021-06-01');
+            expect(screen.getByTestId('rfm-end')).toHaveTextContent('2021-06-01');
+        });
+    });
+ 
+    test('handles clean data where no entries have a country', async () => {
+        const mockData = {
+            entries: [
+                { invoice: 'INV001', invoiceDate: '2021-01-01T00:00:00', country: null },
+                { invoice: 'INV002', invoiceDate: '2021-06-01T00:00:00', country: null },
+            ],
+            totalEntries: 2,
+            status: 'COMPLETED',
+        };
+        await goToResults(mockData);
+ 
+        fireEvent.click(screen.getByRole('button', { name: /RFM Scatter Plot/i }));
+ 
+        await waitFor(() => {
+            // No country should be passed — rfm-country span should be empty
+            expect(screen.getByTestId('rfm-country')).toHaveTextContent('');
+        });
     });
 });
