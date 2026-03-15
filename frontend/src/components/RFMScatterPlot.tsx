@@ -153,27 +153,30 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
                 </div>
                 <div className="rfm-filters">
                     <div>
-                        <span className="rfm-filter-label">Start Date</span>
+                        <label htmlFor="start-date" className="rfm-filter-label">Start Date</label>
                         <input
                             type="date"
+                            id="start-date"
                             className="rfm-input"
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
                         />
                     </div>
                     <div>
-                        <span className="rfm-filter-label">End Date</span>
+                        <label htmlFor="end-date" className="rfm-filter-label">End Date</label>
                         <input
                             type="date"
+                            id="end-date"
                             className="rfm-input"
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
                         />
                     </div>
                     <div>
-                        <span className="rfm-filter-label">Country (optional)</span>
+                        <label htmlFor="country" className="rfm-filter-label">Country (optional)</label>
                         <input
                             type="text"
+                            id="country"
                             placeholder="e.g. United Kingdom"
                             className="rfm-input rfm-input-country"
                             value={countryInput}
