@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 
+// Components
+import { RFMScatterPlot } from './components/RFMScatterPlot';
+
 type PrimitiveCell = string | number | boolean | null | undefined;
 
 interface DirtyRow {
@@ -20,6 +23,8 @@ interface CleanRow {
     quantity?: PrimitiveCell;
     price?: PrimitiveCell;
     customerId?: PrimitiveCell;
+    invoiceDate?: string; // to get the date range for the rfm scatter plot
+    country?: string; // to get the country for the rfm scatter plot
 }
 
 interface InvalidRow {
@@ -29,7 +34,7 @@ interface InvalidRow {
     validationErrors?: string;
 }
 
-type ResultsTab = 'clean' | 'invalid' | 'dirty';
+type ResultsTab = 'clean' | 'invalid' | 'rfm-scatter-results' | 'dirty';
 
 const parseRawValues = (rawValues?: string): Record<string, PrimitiveCell> => {
     if (!rawValues) {
@@ -44,10 +49,22 @@ const parseRawValues = (rawValues?: string): Record<string, PrimitiveCell> => {
     }
 };
 
+// Helper to get the date range from the clean data
+// walks through the clean data and finds the min and max invoiceDate to determine the date range for the rfm scatter plot
+const deriveDateRange = (rows: CleanRow[]): { startDate: string; endDate: string } => {
+    const dates = rows
+        .map((r) => r.invoiceDate?.slice(0, 10))   // keep only YYYY-MM-DD
+        .filter((d): d is string => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d));
+
+    if (dates.length === 0) return { startDate: '', endDate: '' };
+    dates.sort();
+    return { startDate: dates[0], endDate: dates[dates.length - 1] };
+};
+
 export const DataIngestion: React.FC = () => {
     const [step, setStep] = useState<'upload' | 'processing' | 'results'>('upload');
     const [processingMessage, setProcessingMessage] = useState('Uploading and cleaning data...');
-    const [activeTab, setActiveTab] = useState<'clean' | 'invalid' | 'dirty'>('clean');
+    const [activeTab, setActiveTab] = useState<'clean' | 'invalid' | 'rfm-scatter-results' | 'dirty'>('clean');
 
     // Pagination state
     const [page, setPage] = useState(0);
@@ -63,6 +80,11 @@ export const DataIngestion: React.FC = () => {
     const [dirtyData, setDirtyData] = useState<DirtyRow[]>([]);
     const [dirtyTotal, setDirtyTotal] = useState(0);
 
+    // RFM filter state - derived from clean data for now, but could be user inputs in the future
+    const [rfmStartDate, setRfmStartDate] = useState('');
+    const [rfmEndDate, setRfmEndDate] = useState('');
+    const [rfmCountry, setRfmCountry] = useState('');
+
     // Fetch one cleaned-data page and return total rows for tab badges/empty checks.
     const fetchCleanPage = async (currentPage = 0): Promise<number> => {
         const cleanRes = await fetch(`/api/cleaning-data/cleaned?page=${currentPage}&size=${size}`);
@@ -72,6 +94,20 @@ export const DataIngestion: React.FC = () => {
         const data = await cleanRes.json();
         setCleanData(data.entries);
         setCleanTotal(data.totalEntries ?? 0);
+
+        // Derive RFM filter values from the full clean data on each fetch, since users can switch to the RFM tab at any time and we want the filters to reflect the current clean dataset
+        const { startDate, endDate } = deriveDateRange(data.entries);
+        if (startDate) setRfmStartDate(startDate);
+        if (endDate) setRfmEndDate(endDate);
+        // Use the most common country from this page as the default hint (optional)
+        const countries = (data.entries as CleanRow[]).map((r) => r.country).filter((c): c is string => !!c);
+        if (countries.length > 0) {
+            const countryCounts: Record<string, number> = {};
+            countries.forEach((c) => { countryCounts[c] = (countryCounts[c] || 0) + 1; });
+            const mostCommonCountry = Object.entries(countryCounts).sort((a, b) => b[1] - a[1])[0][0];
+            setRfmCountry(mostCommonCountry);
+        }
+
         return data.totalEntries ?? 0;
     };
 
@@ -127,6 +163,14 @@ export const DataIngestion: React.FC = () => {
                     invalid: invalidTotal,
                     dirty: await fetchDirtyPage(currentPage)
                 };
+            }
+
+            // for the rfm scatter plot page
+            if (mode === 'rfm-scatter-results') {
+                // RFMScatterPlot handles its own fetch
+                // onlyn need to ensure cleanData is loaded/updated
+                const cleanCount = cleanData.length === 0 ? await fetchCleanPage(0) : cleanTotal;
+                return { clean: cleanCount, invalid: invalidTotal, dirty: dirtyTotal };
             }
 
             // Full refresh is used only after job completion or "View Existing Results".
@@ -349,6 +393,21 @@ export const DataIngestion: React.FC = () => {
                             Invalid Items ({invalidTotal})
                         </button>
                         <button
+                            onClick={() => handleTabChange('rfm-scatter-results')}
+                            style={{
+                                fontWeight: activeTab === 'rfm-scatter-results' ? 'bold' : 'normal',
+                                backgroundColor: activeTab === 'rfm-scatter-results' ? '#e0e0e0' : '#e0e0e0',
+                                border: '1px solid #777',
+                                borderBottom: activeTab === 'rfm-scatter-results' ? 'none' : '1px solid #777',
+                                padding: '5px 10px',
+                                position: 'relative',
+                                top: '1px',
+                                zIndex: activeTab === 'rfm-scatter-results' ? 1 : 0
+                            }}
+                        >
+                            RFM Scatter Plot Results
+                        </button>
+                        <button
                             onClick={() => handleTabChange('dirty')}
                             style={{
                                 fontWeight: activeTab === 'dirty' ? 'bold' : 'normal',
@@ -448,6 +507,24 @@ export const DataIngestion: React.FC = () => {
                             </div>
                         )}
 
+                        {/* RFM Scatter Plot*/}
+                        {activeTab === 'rfm-scatter-results' && (
+                            <div style={{ padding: '10px' }}>
+                                {/*
+                                  * The RFMScatterPlot component is fully self-contained:
+                                  * it owns its own filter state and API calls.
+                                  * We pass date-range hints derived from cleanData as
+                                  * convenient pre-fills so the analyst doesn't have to
+                                  * type them manually.
+                                  */}
+                                <RFMScatterPlot
+                                    initialStartDate={rfmStartDate}
+                                    initialEndDate={rfmEndDate}
+                                    initialCountry={rfmCountry}
+                                />
+                            </div>
+                        )}
+ 
                         {activeTab === 'dirty' && (
                             <div style={{ padding: '0 10px' }}>
                                 <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

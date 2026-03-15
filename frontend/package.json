@@ -40,6 +40,7 @@
     "papaparse": "^5.5.3",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
+    "recharts": "^2.1.16",
     "xlsx": "^0.18.5"
   },
   "browserslist": {
