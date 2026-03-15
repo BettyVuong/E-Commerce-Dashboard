@@ -405,7 +405,7 @@ export const DataIngestion: React.FC = () => {
                                 zIndex: activeTab === 'rfm-scatter-results' ? 1 : 0
                             }}
                         >
-                            RFM Scatter Plot Results
+                            RFM Scatter Plot
                         </button>
                         <button
                             onClick={() => handleTabChange('dirty')}
