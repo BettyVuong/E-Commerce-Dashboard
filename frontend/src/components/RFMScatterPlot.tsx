@@ -139,18 +139,18 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
     interface BubbleShapeProps {
         cx?: number;
         cy?: number;
-        payload: RfmMetric;
+        payload?: RfmMetric;
     }
     // custom bubble shape so recharts respects the radius we set in Cell
-    const BubbleShape = (props: BubbleShapeProps) => {
-        const { cx, cy, payload } = props;
+    const BubbleShape = ({ cx = 0, cy = 0, payload }: BubbleShapeProps) => {
+        if (!payload) return null;
         const r = scaledRadius(payload.bubbleSize);
         return (
             <circle
                 cx={cx}
                 cy={cy}
                 r={r}
-                fill={monetaryColor(payload.monetary, maxMonetary)}
+                fill={monetaryColor(payload?.monetary, maxMonetary)}
                 fillOpacity={0.82}
                 stroke="rgba(0,0,0,0.1)"
                 strokeWidth={1}
