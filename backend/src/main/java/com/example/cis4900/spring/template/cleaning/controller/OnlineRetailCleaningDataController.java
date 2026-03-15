@@ -4,15 +4,20 @@ import com.example.cis4900.spring.template.cleaning.dto.CleanedRetailDataItem;
 import com.example.cis4900.spring.template.cleaning.dto.DirtyRetailDataItem;
 import com.example.cis4900.spring.template.cleaning.dto.ManualReviewItem;
 import com.example.cis4900.spring.template.cleaning.dto.PagedResponse;
+import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningExportService;
 import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningQueryService;
 import java.util.Set;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -25,11 +30,22 @@ public class OnlineRetailCleaningDataController {
 
     private static final int DEFAULT_SIZE = 15;
     private static final Set<Integer> ALLOWED_SIZES = Set.of(15, 25, 50, 100);
+    // Constants for exporting excel header
+    private static final MediaType XLSX_MEDIA_TYPE = MediaType.parseMediaType(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    private static final String EXPORT_FILE_NAME = "cleaned-data.xlsx";
+
 
     private final OnlineRetailCleaningQueryService cleaningQueryService;
+    private final OnlineRetailCleaningExportService cleaningExportService;
 
-    public OnlineRetailCleaningDataController(OnlineRetailCleaningQueryService cleaningQueryService) {
+    public OnlineRetailCleaningDataController(
+        OnlineRetailCleaningQueryService cleaningQueryService,
+        OnlineRetailCleaningExportService cleaningExportService
+    ) {
         this.cleaningQueryService = cleaningQueryService;
+        this.cleaningExportService = cleaningExportService;
     }
 
     /**
@@ -48,6 +64,33 @@ public class OnlineRetailCleaningDataController {
             .cacheControl(CacheControl.noStore())
             .body(cleaningQueryService.getCleanedDataPage(page, resolvedSize));
     }
+
+    @GetMapping("/cleaned/export")
+    public ResponseEntity<StreamingResponseBody> exportCleanedData() {
+        // Handle no data case
+        // Avoid sending an empty file
+        if (!cleaningExportService.hasExportRows()) {
+            return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .build();
+        }
+
+        // Attempts workbook creation
+        // Stream workbook bytes straight to the response
+        StreamingResponseBody responseBody = cleaningExportService::writeWorkbook;
+
+        // Let the browser download the workbook as a file attachment
+        return ResponseEntity
+            .ok()
+            .cacheControl(CacheControl.noStore())
+            .contentType(XLSX_MEDIA_TYPE)
+            .header(
+                HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"" + EXPORT_FILE_NAME + "\""
+            )
+            .body(responseBody);
+    }
+
 
     /**
      * Reads one page of manual-review rows for frontend table rendering.
