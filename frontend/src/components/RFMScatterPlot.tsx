@@ -51,7 +51,7 @@ const monetaryColor = (monetary: number, max: number): string => {
 interface TooltipPayload {
     payload: RfmMetric;
 }
- 
+
 const CustomTooltip: React.FC<{ active?: boolean; payload?: TooltipPayload[] }> = ({
     active,
     payload,
@@ -98,23 +98,61 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
     const [endDate, setEndDate] = useState(initialEndDate);
     const [country, setCountry] = useState(initialCountry);
     const [countryInput, setCountryInput] = useState(initialCountry);
- 
+
     const [data, setData] = useState<RfmMetric[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [hasFetched, setHasFetched] = useState(false);
- 
+
     const countryDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleCountryInput = (val: string) => {
         setCountryInput(val);
         if (countryDebounce.current) clearTimeout(countryDebounce.current);
         countryDebounce.current = setTimeout(() => setCountry(val.trim()), 600);
     };
- 
+
+    // for custom bubble size and color scaling
     const maxMonetary = data.reduce((m, d) => Math.max(m, d.monetary), 0);
     const maxBubble = data.reduce((m, d) => Math.max(m, d.bubbleSize), 1);
     const scaledRadius = (bubbleSize: number) => 6 + Math.round((bubbleSize / maxBubble) * 34);
- 
+
+    // for dynamic axis domains with some padding
+    // so that data is centered
+    const recencyValues = data.map((d) => d.recency); // extract recency values
+    const frequencyValues = data.map((d) => d.frequency); // extract frequency values
+
+    // calculate min/max with padding, and ensure some minimum padding for visibility
+    const recencyMin = recencyValues.length > 0 ? Math.min(...recencyValues) : 0;
+    const recencyMax = recencyValues.length > 0 ? Math.max(...recencyValues) : 100;
+    const frequencyMax = frequencyValues.length > 0 ? Math.max(...frequencyValues) : 10;
+    const recencyPad = Math.max((recencyMax - recencyMin) * 0.12, 10);
+    const frequencyPad = Math.max(frequencyMax * 0.12, 1);
+
+    // set axis domains with padding, ensuring recency starts at 0 or below for better visualization
+    const xDomain: [number, number] = [
+        Math.max(0, Math.floor(recencyMin - recencyPad)),
+        Math.ceil(recencyMax + recencyPad),
+    ];
+    const yDomain: [number, number] = [0, Math.ceil(frequencyMax + frequencyPad)];
+
+    // custom bubble shape so recharts respects the radius we set in Cell
+    const BubbleShape = (props: any) => {
+        const { cx, cy, payload } = props;
+        const r = scaledRadius(payload.bubbleSize);
+        return (
+            <circle
+                cx={cx}
+                cy={cy}
+                r={r}
+                fill={monetaryColor(payload.monetary, maxMonetary)}
+                fillOpacity={0.82}
+                stroke="rgba(0,0,0,0.1)"
+                strokeWidth={1}
+            />
+        );
+    };
+
+    // fetch data from backend API with current filters
     const fetchData = useCallback(async () => {
         if (!startDate || !endDate) return;
         setLoading(true);
@@ -136,15 +174,15 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
             setLoading(false);
         }
     }, [startDate, endDate, country]);
- 
+
     useEffect(() => {
         if (hasFetched) fetchData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [country]);
- 
+
     return (
         <div className="rfm-wrapper">
- 
+
             {/* Header + Filters */}
             <div className="rfm-header">
                 <div>
@@ -192,10 +230,10 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
                     </button>
                 </div>
             </div>
- 
+
             {/* Error */}
             {error && <div className="rfm-error">⚠ {error}</div>}
- 
+
             {/* Summary stats */}
             {hasFetched && data.length > 0 && (
                 <div className="rfm-stats-row">
@@ -223,7 +261,7 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
                     </div>
                 </div>
             )}
- 
+
             {/* Chart */}
             <div className="rfm-chart-area">
                 {!hasFetched && !loading && (
@@ -251,6 +289,7 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
                                 type="number"
                                 dataKey="recency"
                                 name="Recency"
+                                domain={xDomain}
                                 label={{
                                     value: 'Recency (days since last order)',
                                     position: 'insideBottom',
@@ -267,6 +306,7 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
                                 type="number"
                                 dataKey="frequency"
                                 name="Frequency"
+                                domain={yDomain}
                                 label={{
                                     value: 'Frequency (order count)',
                                     angle: -90,
@@ -284,23 +324,16 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
                                 content={<CustomTooltip />}
                                 cursor={{ stroke: '#aaa', strokeDasharray: '4 2' }}
                             />
-                            <Scatter data={data} isAnimationActive={false}>
-                                {data.map((entry, index) => (
-                                    <Cell
-                                        key={`cell-${index}`}
-                                        fill={monetaryColor(entry.monetary, maxMonetary)}
-                                        fillOpacity={0.82}
-                                        r={scaledRadius(entry.bubbleSize)}
-                                        stroke="rgba(0,0,0,0.1)"
-                                        strokeWidth={1}
-                                    />
-                                ))}
-                            </Scatter>
+                            <Scatter
+                                data={data}
+                                isAnimationActive={false}
+                                shape={<BubbleShape />}
+                            />
                         </ScatterChart>
                     </ResponsiveContainer>
                 )}
             </div>
- 
+
             {/* Legend */}
             {hasFetched && data.length > 0 && (
                 <div className="rfm-legend">
@@ -329,5 +362,5 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
         </div>
     );
 };
- 
+
 export default RFMScatterPlot;
