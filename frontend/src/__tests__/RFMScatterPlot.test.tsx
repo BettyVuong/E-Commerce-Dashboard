@@ -236,7 +236,7 @@ describe('RFMScatterPlot Component Unit Tests', () => {
 
     test('shows loading text while fetch is in progress', async () => {
         // Never resolve so we can inspect the loading state
-        (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}));
+        (global.fetch as jest.Mock).mockImplementation(() => new Promise(jest.fn()));
         render(<RFMScatterPlot />);
         fireEvent.change(screen.getByLabelText(/Start Date/i), { target: { value: '2020-01-01' } });
         fireEvent.change(screen.getByLabelText(/End Date/i),   { target: { value: '2021-01-01' } });
@@ -246,7 +246,7 @@ describe('RFMScatterPlot Component Unit Tests', () => {
     });
 
     test('Apply button is disabled while loading', async () => {
-        (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}));
+        (global.fetch as jest.Mock).mockImplementation(() => new Promise(jest.fn()));
         render(<RFMScatterPlot />);
         fireEvent.change(screen.getByLabelText(/Start Date/i), { target: { value: '2020-01-01' } });
         fireEvent.change(screen.getByLabelText(/End Date/i),   { target: { value: '2021-01-01' } });
