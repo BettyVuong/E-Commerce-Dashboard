@@ -135,8 +135,14 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
     ];
     const yDomain: [number, number] = [0, Math.ceil(frequencyMax + frequencyPad)];
 
+    // custom interface for scatter plots  bubbles
+    interface BubbleShapeProps {
+        cx?: number;
+        cy?: number;
+        payload: RfmMetric;
+    }
     // custom bubble shape so recharts respects the radius we set in Cell
-    const BubbleShape = (props: any) => {
+    const BubbleShape = (props: BubbleShapeProps) => {
         const { cx, cy, payload } = props;
         const r = scaledRadius(payload.bubbleSize);
         return (
