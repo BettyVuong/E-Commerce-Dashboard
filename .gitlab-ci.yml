@@ -156,9 +156,18 @@ integration-full-stack:
     - |
       i=1
       while [ $i -le 60 ]; do
-        if mariadb-admin ping -h database -uroot -p"$DB_PASSWORD" --silent; then
-          echo "[ready] database"
-          break
+        # Prefer using the mysql client if available (installed via mariadb-client)
+        if command -v mysql >/dev/null 2>&1; then
+          if mysql -h database -uroot -p"$DB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
+            echo "[ready] database"
+            break
+          fi
+        else
+          # Fallback: test TCP port 3306 availability
+          if bash -c "</dev/tcp/database/3306" >/dev/null 2>&1; then
+            echo "[ready] database (tcp)"
+            break
+          fi
         fi
         echo "[wait] database (${i}/60)"
         i=$((i+1))
