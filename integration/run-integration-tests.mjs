@@ -177,7 +177,36 @@ async function loadDiscoveredTests(ctx) {
       if (!moduleTest?.name || typeof moduleTest.run !== "function") {
         throw new Error(`Invalid test entry in ${path.relative(ROOT_DIR, testFile)}`);
       }
-      tests.push(moduleTest);
+
+      // Derive a friendly classname default from the file path, e.g.
+      // integration/tests/frontend/rfm/... -> "RFM - Frontend"
+      const rel = path.relative(ROOT_DIR, testFile).split(path.sep);
+      let derived = "integration";
+      try {
+        const idx = rel.indexOf("integration");
+        if (idx >= 0 && rel[idx + 1] === "tests") {
+          const scope = rel[idx + 2] || ""; // frontend | backend
+          const feature = rel[idx + 3] || ""; // rfm | cleaning
+          const featureLabel = feature ? feature.toUpperCase() : "";
+          const scopeLabel = scope ? scope.charAt(0).toUpperCase() + scope.slice(1) : "";
+          if (featureLabel && scopeLabel) {
+            derived = `${featureLabel} - ${scopeLabel}`;
+          } else if (featureLabel) {
+            derived = featureLabel;
+          } else {
+            derived = path.relative(ROOT_DIR, testFile);
+          }
+        } else {
+          derived = path.relative(ROOT_DIR, testFile);
+        }
+      } catch {
+        derived = path.relative(ROOT_DIR, testFile);
+      }
+
+      // Allow module tests to override the classname by providing `classname`.
+      const classname = typeof moduleTest.classname === "string" ? moduleTest.classname : derived;
+
+      tests.push({ ...moduleTest, __source: path.relative(ROOT_DIR, testFile), __classname: classname });
     }
   }
 
@@ -188,12 +217,14 @@ async function writeJUnit(results) {
   const failures = results.filter((r) => !r.passed).length;
   const testCasesXml = results
     .map((result) => {
+      // `classname` may be attached by the runner as `result.classname`.
+      const classname = xmlEscape(result.classname ?? "integration");
       if (result.passed) {
-        return `<testcase classname=\"integration\" name=\"${xmlEscape(result.name)}\"/>`;
+        return `<testcase classname=\"${classname}\" name=\"${xmlEscape(result.name)}\"/>`;
       }
 
       const message = xmlEscape(result.errorMessage ?? "unknown test failure");
-      return `<testcase classname=\"integration\" name=\"${xmlEscape(result.name)}\"><failure message=\"${message}\">${message}</failure></testcase>`;
+      return `<testcase classname=\"${classname}\" name=\"${xmlEscape(result.name)}\"><failure message=\"${message}\">${message}</failure></testcase>`;
     })
     .join("\n");
 
@@ -227,12 +258,12 @@ async function main() {
     try {
       await test.run();
       process.stdout.write(`[pass] ${test.name}\n`);
-      results.push({ name: test.name, passed: true });
+      results.push({ name: test.name, passed: true, classname: test.__classname ?? test.__source });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       // Print failure reason for quick triage in CI logs.
       process.stdout.write(`[fail] ${test.name}: ${errorMessage}\n`);
-      results.push({ name: test.name, passed: false, errorMessage });
+      results.push({ name: test.name, passed: false, errorMessage, classname: test.__classname ?? test.__source });
     }
   }
 
