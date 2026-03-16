@@ -80,3 +80,30 @@ export async function waitForCompletedCleaningJob(ctx, baseUrl, jobId, attempts 
 
   throw new Error("job did not complete before timeout");
 }
+
+export async function getCleanedTotal(ctx, baseUrl) {
+  // Query cleaned-data totals so tests can decide whether seed data is needed.
+  const res = await ctx.http("GET", `${baseUrl}/api/cleaning-data/cleaned?page=0&size=15`);
+  if (res.status !== 200 || !res.json) {
+    throw new Error(`cleaned total lookup failed with HTTP ${res.status}`);
+  }
+
+  return Number(res.json.totalEntries ?? 0);
+}
+
+export async function ensureCleanedDataExists(ctx, baseUrl) {
+  // Keep export tests deterministic across fresh and reused environments.
+  const cleanedBefore = await getCleanedTotal(ctx, baseUrl);
+  if (cleanedBefore > 0) {
+    return;
+  }
+
+  await uploadFixture(ctx, baseUrl);
+  const jobId = await createCleaningJob(ctx, baseUrl);
+  await waitForCompletedCleaningJob(ctx, baseUrl, jobId);
+
+  const cleanedAfter = await getCleanedTotal(ctx, baseUrl);
+  if (cleanedAfter < 1) {
+    throw new Error(`expected cleaned_data totalEntries >= 1 after seeding, got ${cleanedAfter}`);
+  }
+}
