@@ -95,3 +95,41 @@ docker compose -f compose.yaml down -v
 JUnit XML is written to:
 
 - `integration/artifacts/junit/integration-tests.xml`
+
+## Playwright (UI) tests
+
+We use Playwright to run headless browser checks for UI flows (e.g. the RFM scatter-plot smoke tests).
+
+Quick setup (local):
+
+1. Install integration dependencies:
+
+```bash
+npm --prefix integration install
+```
+
+2. Install Playwright browsers (required once):
+
+```bash
+npx playwright install --with-deps
+```
+
+Run integration tests (includes Playwright UI tests):
+
+```bash
+npm --prefix integration run test
+```
+
+Run only frontend-scoped tests (useful while developing UI tests):
+
+```bash
+npm --prefix integration run test:frontend
+```
+
+Notes & troubleshooting:
+
+- The integration runner waits for the backend and frontend to be reachable before running tests. Ensure the stack is up (see the "Local usage" section).
+- Playwright tests are executed headless by default. If a test fails with a selector timeout, open the app in a browser locally and verify the UI path (e.g. click "View Existing Results" → "RFM Scatter Plot").
+- CI environments may require additional OS packages for Playwright browsers. Use `npx playwright install --with-deps` on Linux CI runners, or consult Playwright docs for platform-specific notes: https://playwright.dev/docs/intro
+- Test results (including Playwright failures) are written to `integration/artifacts/junit/integration-tests.xml` for CI collection.
+

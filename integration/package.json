@@ -7,4 +7,8 @@
     "test:backend": "node run-integration-tests.mjs --scope=backend",
     "test:frontend": "node run-integration-tests.mjs --scope=frontend"
   }
+  ,
+  "devDependencies": {
+    "playwright": "^1.36.0"
+  }
 }

@@ -145,8 +145,13 @@ integration-full-stack:
     DB_USER: "root"
     DB_PASSWORD: "pwd"
   before_script:
-    - apt-get update -y && apt-get install -y openjdk-17-jdk curl jq mariadb-client
+    - apt-get update -y && apt-get install -y openjdk-17-jdk curl jq mariadb-client \
+      libnss3 libatk-bridge2.0-0 libgtk-3-0 libx11-xcb1 libasound2 libxss1 libgbm1 fonts-liberation
     - mkdir -p integration/artifacts/junit
+    - cd integration
+    - npm ci
+    - npx playwright install --with-deps
+    - cd ..
   script:
     # Wait for DB service and seed baseline schema/data expected before Flyway V2+
     - |
