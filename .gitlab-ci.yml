@@ -134,7 +134,7 @@ workflow:
 # Full-stack integration tests (frontend + backend + database)
 integration-full-stack:
   stage: integration
-  image: node:20-bullseye
+  image: mcr.microsoft.com/playwright:v1.36.0-focal
   services:
     - name: mariadb:10.6
       alias: database
@@ -145,12 +145,11 @@ integration-full-stack:
     DB_USER: "root"
     DB_PASSWORD: "pwd"
   before_script:
-    - apt-get update -y && apt-get install -y openjdk-17-jdk curl jq mariadb-client \
-      libnss3 libatk-bridge2.0-0 libgtk-3-0 libx11-xcb1 libasound2 libxss1 libgbm1 fonts-liberation
+    # Playwright image already contains necessary browser libraries; install JDK and mariadb client only.
+    - apt-get update -y && apt-get install -y openjdk-17-jdk curl jq mariadb-client
     - mkdir -p integration/artifacts/junit
     - cd integration
     - npm ci
-    - npx playwright install --with-deps
     - cd ..
   script:
     # Wait for DB service and seed baseline schema/data expected before Flyway V2+
