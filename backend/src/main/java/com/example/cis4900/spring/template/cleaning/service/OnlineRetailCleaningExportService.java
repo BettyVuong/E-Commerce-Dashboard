@@ -6,11 +6,13 @@ import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import java.util.logging.Logger;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -20,11 +22,13 @@ public class OnlineRetailCleaningExportService {
     private static final String SHEET_NAME = "cleaned_data";
     private static final int EXPORT_BATCH_SIZE = 1000;
     private static final int ROW_WINDOW_SIZE = 100;
+    private static final int EXCEL_MAX_ROWS = 1_048_576; // Excel limit per sheet
     private static final DateTimeFormatter EXPORT_DATE_FORMAT =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     // Stores DB helper the service will use
     private final JdbcTemplate jdbcTemplate;
+    private static final Logger LOG = Logger.getLogger(OnlineRetailCleaningExportService.class.getName());
     // Spring supplies JdbcTemplate
 
     public OnlineRetailCleaningExportService(JdbcTemplate jdbcTemplate) {
@@ -40,18 +44,16 @@ public class OnlineRetailCleaningExportService {
 
     // Turn rows into a real excel file
     public void writeWorkbook(OutputStream outputStream) {
-        // Keep only a small workbook window in memory
+        // Produce a single XLSX file containing one or more sheets per year.
+        // If a year's sheet exceeds Excel's row limit we create additional sheets
+        // named "{year} cleaned", "{year} cleaned 2", etc.
         SXSSFWorkbook workbook = new SXSSFWorkbook(ROW_WINDOW_SIZE);
         workbook.setCompressTempFiles(true);
 
-        try {
-            // Build the sheet once and append rows as batches arrive
-            Sheet sheet = workbook.createSheet(SHEET_NAME);
-            writeHeaderRow(sheet);
+        Map<Integer, YearSheet> yearSheets = new HashMap<>();
 
-            // Read the export in small batches
+        try {
             long lastSeenRawDataId = 0L;
-            int rowIndex = 1;
 
             while (true) {
                 List<Map<String, Object>> batch = loadExportBatch(lastSeenRawDataId);
@@ -61,24 +63,66 @@ public class OnlineRetailCleaningExportService {
                 }
 
                 for (Map<String, Object> batchRow : batch) {
-                    // Advance the cursor after each row so the next query picks up where this one ended
-                    writeDataRow(sheet, rowIndex++, toExportRow(batchRow));
+                    CleanedRetailExportRow exportRow = toExportRow(batchRow);
+                    int year = exportRow.invoiceDate().getYear();
+
+                    YearSheet ys = yearSheets.computeIfAbsent(year, y -> new YearSheet(y, workbook));
+
+                    // If current sheet for year is full, create a new sheet part
+                    if (ys.currentRowIndex >= EXCEL_MAX_ROWS) {
+                        ys.startNewPart(workbook);
+                    }
+
+                    writeDataRow(ys.sheet, ys.currentRowIndex++, exportRow);
+
                     lastSeenRawDataId = readRequiredLong(batchRow, "raw_data_id");
                 }
             }
 
-            // Send workbook bytes directly to the HTTP response stream
+            // Write single workbook to output
             workbook.write(outputStream);
             outputStream.flush();
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to build cleaned data workbook", exception);
         } finally {
-            workbook.dispose();
+            // cleanup workbook resources
             try {
+                workbook.dispose();
                 workbook.close();
-            } catch (IOException ignored) {
-                // Best effort cleanup for workbook resources
+            } catch (IOException e) {
+                LOG.warning("Failed to cleanup workbook resources: " + e.getMessage());
             }
+        }
+    }
+    
+    private static class YearSheet {
+        final int year;
+        int part = 1;
+        Sheet sheet;
+        int currentRowIndex; // next row index to write (0-based)
+
+        YearSheet(int year, SXSSFWorkbook workbook) {
+            this.year = year;
+            createSheet(workbook);
+        }
+
+        void createSheet(SXSSFWorkbook workbook) {
+            String name = sanitizeSheetName(buildSheetName());
+            this.sheet = workbook.createSheet(name);
+            writeHeaderRow(this.sheet);
+            this.currentRowIndex = 1;
+        }
+
+        void startNewPart(SXSSFWorkbook workbook) {
+            part++;
+            createSheet(workbook);
+        }
+
+        String buildSheetName() {
+            if (part <= 1) {
+                return year + " cleaned";
+            }
+            return year + " cleaned " + part;
         }
     }
 
@@ -146,7 +190,41 @@ public class OnlineRetailCleaningExportService {
     }
 
     private static String safeString(String value) {
-        return value == null ? "" : value;
+        if (value == null) {
+            return "";
+        }
+        // Remove illegal XML characters that would corrupt the XLSX package
+        StringBuilder sb = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            // Allow: TAB (0x09), LF (0x0A), CR (0x0D) and all chars >= 0x20
+            if (c == 0x09 || c == 0x0A || c == 0x0D || c >= 0x20) {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String sanitizeSheetName(String name) {
+        if (name == null) {
+            return "";
+        }
+        // Remove characters not allowed in Excel sheet names: : \\\ / ? * [ ]
+        String sanitized = name
+            .replace(":", " ")
+            .replace("\\", " ")
+            .replace("/", " ")
+            .replace("?", " ")
+            .replace("*", " ")
+            .replace("[", " ")
+            .replace("]", " ")
+            .trim();
+        // Excel sheet name max length is 31
+        if (sanitized.length() > 31) {
+            sanitized = sanitized.substring(0, 31);
+        }
+        // If empty after sanitization, provide a fallback name
+        return sanitized.isEmpty() ? "sheet" : sanitized;
     }
 
     private static int readRequiredInt(Map<String, Object> rowValues, String key) {

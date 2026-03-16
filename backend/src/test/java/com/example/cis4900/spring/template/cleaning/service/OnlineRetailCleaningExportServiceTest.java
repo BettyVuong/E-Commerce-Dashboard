@@ -96,7 +96,7 @@ class OnlineRetailCleaningExportServiceTest {
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(workbookBytes))) {
             assertEquals(1, workbook.getNumberOfSheets());
 
-            var sheet = workbook.getSheet("cleaned_data");
+            var sheet = workbook.getSheet("2010 cleaned");
             assertNotNull(sheet);
 
             var headerRow = sheet.getRow(0);
@@ -168,7 +168,7 @@ class OnlineRetailCleaningExportServiceTest {
 
         // Blank export cells should stay blank after workbook generation
         try (XSSFWorkbook workbook = new XSSFWorkbook(new ByteArrayInputStream(workbookBytes))) {
-            var sheet = workbook.getSheet("cleaned_data");
+            var sheet = workbook.getSheet("2010 cleaned");
             assertNotNull(sheet);
 
             var dataRow = sheet.getRow(1);
