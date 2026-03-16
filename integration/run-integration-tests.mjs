@@ -95,11 +95,48 @@ async function waitForReachable({ name, url, attempts = 60, delayMs = 2000 }) {
   throw new Error(`Timeout waiting for ${name}`);
 }
 
-async function waitForServices() {
+function resolveSelectedScope() {
+  return (
+    process.argv.find((arg) => arg.startsWith("--scope="))?.split("=")[1] ??
+    process.env.INTEGRATION_SCOPE ??
+    "all"
+  );
+}
+
+function resolveScopes(selectedScope) {
+  if (selectedScope === "all") {
+    return ["backend", "frontend", "ui"];
+  }
+
+  const scopes = selectedScope
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (scopes.length === 0) {
+    throw new Error("No integration scopes provided. Use all, backend, frontend, ui, or a comma-separated list.");
+  }
+
+  for (const scope of scopes) {
+    if (scope !== "backend" && scope !== "frontend" && scope !== "ui") {
+      throw new Error(`Invalid scope '${scope}'. Use all, backend, frontend, ui, or a comma-separated list.`);
+    }
+  }
+
+  return scopes;
+}
+
+async function waitForServices(selectedScope) {
+  const scopes = resolveScopes(selectedScope);
+
   await waitForReachable({
     name: "backend API",
     url: `${BACKEND_BASE_URL}${BACKEND_READY_PATH}`
   });
+
+  if (!scopes.includes("frontend") && !scopes.includes("ui")) {
+    return;
+  }
 
   await waitForReachable({
     name: "frontend",
@@ -132,21 +169,8 @@ async function collectTestFiles(directoryPath) {
 }
 
 async function loadDiscoveredTests(ctx) {
-  const selectedScope =
-    process.argv.find((arg) => arg.startsWith("--scope="))?.split("=")[1] ??
-    process.env.INTEGRATION_SCOPE ??
-    "all";
-
-  const scopes =
-    selectedScope === "all"
-      ? ["backend", "frontend"]
-      : [selectedScope];
-
-  for (const scope of scopes) {
-    if (scope !== "backend" && scope !== "frontend") {
-      throw new Error(`Invalid scope '${scope}'. Use all, backend, or frontend.`);
-    }
-  }
+  const selectedScope = resolveSelectedScope();
+  const scopes = resolveScopes(selectedScope);
 
   const testFiles = [];
   for (const scope of scopes) {
@@ -236,7 +260,8 @@ async function writeJUnit(results) {
 
 async function main() {
   await ensureArtifactDirs();
-  await waitForServices();
+  const selectedScope = resolveSelectedScope();
+  await waitForServices(selectedScope);
 
   const ctx = {
     backendBaseUrl: BACKEND_BASE_URL,

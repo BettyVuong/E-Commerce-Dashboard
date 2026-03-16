@@ -131,10 +131,10 @@ workflow:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
     - when: never
 
-# Full-stack integration tests (frontend + backend + database)
+# Integration tests (backend + frontend proxy + database) - Playwright UI excluded
 integration-full-stack:
   stage: integration
-  image: mcr.microsoft.com/playwright:v1.36.0-focal
+  image: node:18-bullseye
   services:
     - name: mariadb:10.6
       alias: database
@@ -145,97 +145,89 @@ integration-full-stack:
     DB_USER: "root"
     DB_PASSWORD: "pwd"
   before_script:
-    # Playwright image already contains necessary browser libraries; install JDK and mariadb client only.
     - apt-get update -y && apt-get install -y openjdk-17-jdk curl jq mariadb-client
     - mkdir -p integration/artifacts/junit
     - cd integration
     - npm ci
     - cd ..
-  script:
+  script: |
     # Wait for DB service and seed baseline schema/data expected before Flyway V2+
-    - |
-      i=1
-      while [ $i -le 60 ]; do
-        # Prefer using the mysql client if available (installed via mariadb-client)
-        if command -v mysql >/dev/null 2>&1; then
-          if mysql -h database -uroot -p"$DB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
-            echo "[ready] database"
-            break
-          fi
-        else
-          # Fallback: test TCP port 3306 availability
-          if bash -c "</dev/tcp/database/3306" >/dev/null 2>&1; then
-            echo "[ready] database (tcp)"
-            break
-          fi
-        fi
-        echo "[wait] database (${i}/60)"
-        i=$((i+1))
-        sleep 2
-      done
-    - |
-      if [ $i -gt 60 ]; then
-        echo "[error] database did not become ready in time"
-        exit 1
+    i=1
+    while [ $i -le 60 ]; do
+      if mysql -h database -uroot -p"$DB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
+        echo "[ready] database"
+        break
       fi
-    - mariadb -h database -uroot -p"$DB_PASSWORD" "$DB_DATABASE" < database/scripts/setup.sql
+      echo "[wait] database (${i}/60)"
+      i=$((i+1))
+      sleep 2
+    done
+
+    if [ $i -gt 60 ]; then
+      echo "[error] database did not become ready in time"
+      exit 1
+    fi
+
+    mariadb -h database -uroot -p"$DB_PASSWORD" "$DB_DATABASE" < database/scripts/setup.sql
+
     # Start backend with DB service (Gradle wrapper will use the env vars)
-    - cd backend
-    - export DB_ADDRESS="jdbc:mysql://database:3306" DB_DATABASE="$DB_DATABASE" DB_USER="$DB_USER" DB_PASSWORD="$DB_PASSWORD"
-    - mkdir -p /flyway/sql
-    - cp -R ../database/scripts/. /flyway/sql/
-    - ./gradlew --no-daemon clean bootRun > ../integration/artifacts/backend-run.log 2>&1 &
-    - echo $! > ../integration/artifacts/backend.pid || true
-    - |
-      i=1
-      while [ $i -le 60 ]; do
-        if ! kill -0 "$(cat ../integration/artifacts/backend.pid)" 2>/dev/null; then
-          echo "[error] backend process exited before becoming ready"
-          tail -n 200 ../integration/artifacts/backend-run.log || true
-          exit 1
-        fi
-        if curl -sS --fail http://localhost:8080${BACKEND_READY_PATH:-/api/docs.html} >/dev/null 2>&1; then
-          echo "[ready] backend"
-          break
-        fi
-        echo "[wait] backend (${i}/60)"
-        i=$((i+1))
-        sleep 2
-      done
-    - |
-      if [ $i -gt 60 ]; then
-        echo "[error] backend did not become ready in time"
+    cd backend
+    export DB_ADDRESS="jdbc:mysql://database:3306" DB_DATABASE="$DB_DATABASE" DB_USER="$DB_USER" DB_PASSWORD="$DB_PASSWORD"
+    mkdir -p /flyway/sql
+    cp -R ../database/scripts/. /flyway/sql/
+    ./gradlew --no-daemon clean bootRun > ../integration/artifacts/backend-run.log 2>&1 &
+    echo $! > ../integration/artifacts/backend.pid || true
+
+    i=1
+    while [ $i -le 60 ]; do
+      if ! kill -0 "$(cat ../integration/artifacts/backend.pid)" 2>/dev/null; then
+        echo "[error] backend process exited before becoming ready"
         tail -n 200 ../integration/artifacts/backend-run.log || true
         exit 1
       fi
-    # Build and serve frontend as a static site (lighter than dev server)
-    - cd ../frontend
-    - npm ci --no-audit --no-fund
-    - export BACKEND_PROXY="http://localhost:8080"
-    - npm run build > ../integration/artifacts/frontend-run.log 2>&1 || (tail -n 200 ../integration/artifacts/frontend-run.log && exit 1)
-    - # Serve built files using Node `serve` (via npx) to avoid Python
-    - npx serve -s build -l 3000 > ../integration/artifacts/frontend-serve.log 2>&1 &
-    - echo $! > ../integration/artifacts/frontend.pid || true
-    - |
-      i=1
-      while [ $i -le 60 ]; do
-        if curl -sS --fail http://localhost:3000${FRONTEND_READY_PATH:-/} >/dev/null 2>&1; then
-          echo "[ready] frontend"
-          break
-        fi
-        echo "[wait] frontend (${i}/60)"
-        i=$((i+1))
-        sleep 2
-      done
-    - |
-      if [ $i -gt 60 ]; then
-        echo "[error] frontend did not become ready in time"
-        tail -n 200 ../integration/artifacts/frontend-serve.log || true
-        exit 1
+      if curl -sS --fail http://localhost:8080${BACKEND_READY_PATH:-/api/docs.html} >/dev/null 2>&1; then
+        echo "[ready] backend"
+        break
       fi
-    # Run integration runner against localhost services
-    - cd ..
-    - BACKEND_BASE_URL=http://localhost:8080 FRONTEND_BASE_URL=http://localhost:3000 node integration/run-integration-tests.mjs
+      echo "[wait] backend (${i}/60)"
+      i=$((i+1))
+      sleep 2
+    done
+
+    if [ $i -gt 60 ]; then
+      echo "[error] backend did not become ready in time"
+      tail -n 200 ../integration/artifacts/backend-run.log || true
+      exit 1
+    fi
+
+    # Start frontend static build server for frontend-proxy integration tests
+    cd ../frontend
+    npm ci --no-audit --no-fund
+    export BACKEND_PROXY="http://localhost:8080"
+    npm run build > ../integration/artifacts/frontend-run.log 2>&1 || (tail -n 200 ../integration/artifacts/frontend-run.log && exit 1)
+    npx serve -s build -l 3000 > ../integration/artifacts/frontend-serve.log 2>&1 &
+    echo $! > ../integration/artifacts/frontend.pid || true
+
+    i=1
+    while [ $i -le 60 ]; do
+      if curl -sS --fail http://localhost:3000${FRONTEND_READY_PATH:-/} >/dev/null 2>&1; then
+        echo "[ready] frontend"
+        break
+      fi
+      echo "[wait] frontend (${i}/60)"
+      i=$((i+1))
+      sleep 2
+    done
+
+    if [ $i -gt 60 ]; then
+      echo "[error] frontend did not become ready in time"
+      tail -n 200 ../integration/artifacts/frontend-serve.log || true
+      exit 1
+    fi
+
+    # Run backend + frontend scopes only (ui/Playwright remains local-only)
+    cd ..
+    BACKEND_BASE_URL=http://localhost:8080 FRONTEND_BASE_URL=http://localhost:3000 INTEGRATION_SCOPE=backend,frontend node integration/run-integration-tests.mjs
   after_script:
     - if [ -f integration/artifacts/backend.pid ]; then kill "$(cat integration/artifacts/backend.pid)" || true; fi
     - if [ -f integration/artifacts/frontend.pid ]; then kill "$(cat integration/artifacts/frontend.pid)" || true; fi

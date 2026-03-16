@@ -6,7 +6,7 @@ This integration runner works on Windows, macOS, and Linux.
 
 Tests are grouped by:
 
-1. Entry path (`backend` or `frontend`)
+1. Entry path (`backend`, `frontend`, or `ui`)
 2. Feature folder (`cleaning`, and future features)
 
 Current structure:
@@ -24,6 +24,9 @@ integration/
 				root-shell.test.mjs
 			cleaning/
 				proxy-cleaning-flow.test.mjs
+			ui/
+				rfm/
+					ui-rfm.test.mjs
 ```
 
 ## Runner vs tests folder
@@ -75,9 +78,10 @@ Optional scoped runs for parallel development:
 ```bash
 npm --prefix integration run test:backend
 npm --prefix integration run test:frontend
+npm --prefix integration run test:ui
 ```
 
-The runner automatically discovers all `*.test.mjs` files under `integration/tests/backend` and `integration/tests/frontend`.
+The runner automatically discovers all `*.test.mjs` files under `integration/tests/backend`, `integration/tests/frontend`, and `integration/tests/ui`.
 
 3. Stop the stack:
 
@@ -114,17 +118,22 @@ npm --prefix integration install
 npx playwright install --with-deps
 ```
 
-Run integration tests (includes Playwright UI tests):
+Run all integration tests (includes Playwright UI tests):
 
 ```bash
 npm --prefix integration run test
 ```
 
-Run only frontend-scoped tests (useful while developing UI tests):
+Run only Playwright UI tests (local):
 
 ```bash
-npm --prefix integration run test:frontend
+npm --prefix integration run test:ui
 ```
+
+CI note:
+
+1. CI runs `backend` and `frontend` integration scopes.
+2. Playwright UI scope (`ui`) is intentionally excluded from CI and meant for local runs.
 
 Notes & troubleshooting:
 
