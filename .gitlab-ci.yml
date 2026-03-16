@@ -200,13 +200,10 @@ integration-full-stack:
       exit 1
     fi
 
-    # Start frontend static build server for frontend-proxy integration tests
-    cd ../frontend
-    npm ci --no-audit --no-fund
-    export BACKEND_PROXY="http://localhost:8080"
-    npm run build > ../integration/artifacts/frontend-run.log 2>&1 || (tail -n 200 ../integration/artifacts/frontend-run.log && exit 1)
-    npx serve -s build -l 3000 > ../integration/artifacts/frontend-serve.log 2>&1 &
-    echo $! > ../integration/artifacts/frontend.pid || true
+    # Start lightweight frontend shell + API proxy server for frontend integration tests
+    cd ..
+    BACKEND_PROXY="http://localhost:8080" node integration/scripts/frontend-proxy-server.mjs > integration/artifacts/frontend-serve.log 2>&1 &
+    echo $! > integration/artifacts/frontend.pid || true
 
     i=1
     while [ $i -le 60 ]; do
@@ -221,12 +218,11 @@ integration-full-stack:
 
     if [ $i -gt 60 ]; then
       echo "[error] frontend did not become ready in time"
-      tail -n 200 ../integration/artifacts/frontend-serve.log || true
+      tail -n 200 integration/artifacts/frontend-serve.log || true
       exit 1
     fi
 
     # Run backend + frontend scopes only (ui/Playwright remains local-only)
-    cd ..
     BACKEND_BASE_URL=http://localhost:8080 FRONTEND_BASE_URL=http://localhost:3000 INTEGRATION_SCOPE=backend,frontend node integration/run-integration-tests.mjs
   after_script:
     - if [ -f integration/artifacts/backend.pid ]; then kill "$(cat integration/artifacts/backend.pid)" || true; fi
