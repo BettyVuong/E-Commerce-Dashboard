@@ -62,6 +62,7 @@ export const DataIngestion: React.FC = () => {
 
     const [dirtyData, setDirtyData] = useState<DirtyRow[]>([]);
     const [dirtyTotal, setDirtyTotal] = useState(0);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     // Fetch one cleaned-data page and return total rows for tab badges/empty checks.
     const fetchCleanPage = async (currentPage = 0): Promise<number> => {
@@ -282,10 +283,11 @@ export const DataIngestion: React.FC = () => {
     };
 
     const handleExport = async () => {
-        try{
-            const res = await fetch('/api/cleaning-data/cleaned/export')
-            if(res.ok){
-                alert('Your file is being downloaded. Please wait shortly.');
+        if (isDownloading) return;
+        setIsDownloading(true);
+        try {
+            const res = await fetch('/api/cleaning-data/cleaned/export');
+            if (res.ok) {
                 const blob = await res.blob();
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -295,14 +297,15 @@ export const DataIngestion: React.FC = () => {
                 a.click();
                 a.remove();
                 window.URL.revokeObjectURL(url);
-            }
-            else{
+            } else {
                 const errorMessage = await res.json();
                 alert(errorMessage.message);
             }
         } catch (error) {
             console.error('Export Error:', error);
             alert('Export failed due to network error.');
+        } finally {
+            setIsDownloading(false);
         }
     };
 
@@ -390,8 +393,19 @@ export const DataIngestion: React.FC = () => {
                         {activeTab === 'clean' && (
                             <div style={{ padding: '0 10px' }}>
                                 <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <button onClick={handleExport} style={{ fontWeight: 'bold', padding: '5px 10px', backgroundColor: '#fff', border: '1px solid #777' }}>
-                                        Download Cleaned Data (Excel file)
+                                    <button
+                                        onClick={handleExport}
+                                        disabled={isDownloading}
+                                        style={{
+                                            fontWeight: 'bold',
+                                            padding: '5px 10px',
+                                            backgroundColor: isDownloading ? '#e0e0e0' : '#fff',
+                                            border: '1px solid #777',
+                                            color: isDownloading ? '#666' : 'inherit',
+                                            cursor: isDownloading ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        {isDownloading ? 'Downloading…' : 'Download Cleaned Data (Excel file)'}
                                     </button>
 
                                     <div>
