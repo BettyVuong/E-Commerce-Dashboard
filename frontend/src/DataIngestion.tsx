@@ -79,6 +79,7 @@ export const DataIngestion: React.FC = () => {
 
     const [dirtyData, setDirtyData] = useState<DirtyRow[]>([]);
     const [dirtyTotal, setDirtyTotal] = useState(0);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     // RFM filter state - derived from clean data for now, but could be user inputs in the future
     const [rfmStartDate, setRfmStartDate] = useState('');
@@ -325,8 +326,31 @@ export const DataIngestion: React.FC = () => {
         }
     };
 
-    const handleExport = () => {
-        alert("Downloading CSV...\n(not actually downloading )");
+    const handleExport = async () => {
+        if (isDownloading) return;
+        setIsDownloading(true);
+        try {
+            const res = await fetch('/api/cleaning-data/cleaned/export');
+            if (res.ok) {
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'cleaned_data.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+            } else {
+                const errorMessage = await res.json();
+                alert(errorMessage.message);
+            }
+        } catch (error) {
+            console.error('Export Error:', error);
+            alert('Export failed due to network error.');
+        } finally {
+            setIsDownloading(false);
+        }
     };
 
     return (
@@ -428,8 +452,19 @@ export const DataIngestion: React.FC = () => {
                         {activeTab === 'clean' && (
                             <div style={{ padding: '0 10px' }}>
                                 <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <button onClick={handleExport} style={{ fontWeight: 'bold', padding: '5px 10px', backgroundColor: '#fff', border: '1px solid #777' }}>
-                                        Download Cleaned Data (.CSV)
+                                    <button
+                                        onClick={handleExport}
+                                        disabled={isDownloading}
+                                        style={{
+                                            fontWeight: 'bold',
+                                            padding: '5px 10px',
+                                            backgroundColor: isDownloading ? '#e0e0e0' : '#fff',
+                                            border: '1px solid #777',
+                                            color: isDownloading ? '#666' : 'inherit',
+                                            cursor: isDownloading ? 'not-allowed' : 'pointer'
+                                        }}
+                                    >
+                                        {isDownloading ? 'Downloading…' : 'Download Cleaned Data (Excel file)'}
                                     </button>
 
                                     <div>

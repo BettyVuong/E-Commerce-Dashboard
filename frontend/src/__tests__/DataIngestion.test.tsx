@@ -93,7 +93,9 @@ describe('DataIngestion Component Unit Tests', () => {
 
         const exportBtn = screen.getByRole('button', { name: /Download Cleaned Data/i });
         fireEvent.click(exportBtn);
-        expect(window.alert).toHaveBeenCalledWith(expect.stringContaining("Downloading CSV"));
+        await waitFor(() => {
+            expect(global.fetch).toHaveBeenCalledWith('/api/cleaning-data/cleaned/export');
+        });
     });
 
     // test for pagination - covers handlePageChange and fetchResults
