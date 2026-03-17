@@ -80,12 +80,10 @@ export function defineTests(ctx) {
           await page.fill('#end-date', '2100-12-31');
           await page.click('.rfm-apply-btn');
 
-          // Wait for empty-state message text
-          await page.waitForSelector('.rfm-empty-state', { timeout: 15000 });
-          const text = await page.textContent('.rfm-empty-state');
-          if (!text || !text.includes('No customers found')) {
-            throw new Error('expected empty-state message containing "No customers found"');
-          }
+          // Wait specifically for the final empty-state text to appear
+          // (the component shows a temporary "Fetching RFM data…" state that also uses the same `.rfm-empty-state` class). 
+          // Waiting for the exact text avoids capturing the transient fetching state.
+          await page.waitForSelector('text=/No customers found/i', { timeout: 15000 });
         } finally {
           await browser.close();
         }
