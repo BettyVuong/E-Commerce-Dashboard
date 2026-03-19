@@ -7,5 +7,10 @@ public record CleaningJobResource(
     String jobId,
     String status,
     Instant createdAt,
+    Instant startedAt,
+    long processedCount,
+    long totalCount,
+    double progress,
+    Long estimatedMillisRemaining,
     CleaningRunSummary summary
 ) {}

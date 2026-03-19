@@ -4,13 +4,12 @@ import com.example.cis4900.spring.template.cleaning.dto.CreateCleaningJobRequest
 import com.example.cis4900.spring.template.cleaning.dto.CleaningJobResource;
 import com.example.cis4900.spring.template.cleaning.model.CleaningRunSummary;
 import com.example.cis4900.spring.template.cleaning.service.OnlineRetailCleaningPipelineService;
+import com.example.cis4900.spring.template.cleaning.service.CleaningProgressStore;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import org.slf4j.Logger;
@@ -31,11 +30,6 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 public class OnlineRetailCleaningController {
     private static final Logger LOGGER = LoggerFactory.getLogger(OnlineRetailCleaningController.class);
 
-    private static final String STATUS_PENDING = "PENDING";
-    private static final String STATUS_RUNNING = "RUNNING";
-    private static final String STATUS_COMPLETED = "COMPLETED";
-    private static final String STATUS_FAILED = "FAILED";
-
     /**
      * Simple REST controller exposing cleaning job endpoints.
      *
@@ -48,19 +42,33 @@ public class OnlineRetailCleaningController {
 
     private final OnlineRetailCleaningPipelineService cleaningPipelineService;
     private final Executor jobExecutor;
-    private final Map<String, CleaningJobResource> jobsById = new ConcurrentHashMap<>();
+    // Shared singleton state used by both POST/GET handlers and the pipeline.
+    private final CleaningProgressStore progressStore;
 
     @Autowired
-    public OnlineRetailCleaningController(OnlineRetailCleaningPipelineService cleaningPipelineService) {
-        this(cleaningPipelineService, ForkJoinPool.commonPool());
+    public OnlineRetailCleaningController(
+        OnlineRetailCleaningPipelineService cleaningPipelineService,
+        CleaningProgressStore progressStore
+    ) {
+        this(cleaningPipelineService, ForkJoinPool.commonPool(), progressStore);
     }
 
+    // Convenience constructor used by unit tests to inject a direct executor.
     OnlineRetailCleaningController(
         OnlineRetailCleaningPipelineService cleaningPipelineService,
         Executor jobExecutor
     ) {
+        this(cleaningPipelineService, jobExecutor, new CleaningProgressStore());
+    }
+
+    OnlineRetailCleaningController(
+        OnlineRetailCleaningPipelineService cleaningPipelineService,
+        Executor jobExecutor,
+        CleaningProgressStore progressStore
+    ) {
         this.cleaningPipelineService = cleaningPipelineService;
         this.jobExecutor = Objects.requireNonNull(jobExecutor, "jobExecutor");
+        this.progressStore = progressStore == null ? new CleaningProgressStore() : progressStore;
     }
 
     @PostMapping
@@ -72,13 +80,7 @@ public class OnlineRetailCleaningController {
         String jobId = UUID.randomUUID().toString();
         Instant createdAt = Instant.now();
 
-        CleaningJobResource queuedJob = new CleaningJobResource(
-            jobId,
-            STATUS_PENDING,
-            createdAt,
-            null
-        );
-        jobsById.put(jobId, queuedJob);
+        CleaningJobResource queuedJob = progressStore.createJob(jobId, createdAt);
         LOGGER.info("Queued cleaning job {} with batchSize={}", jobId, batchSize);
 
         URI location = ServletUriComponentsBuilder
@@ -87,10 +89,7 @@ public class OnlineRetailCleaningController {
             .buildAndExpand(jobId)
             .toUri();
 
-        CompletableFuture.runAsync(
-            () -> runCleaningJob(jobId, createdAt, batchSize),
-            jobExecutor
-        );
+        CompletableFuture.runAsync(() -> runCleaningJob(jobId, createdAt, batchSize), jobExecutor);
 
         return ResponseEntity
             .accepted()
@@ -101,22 +100,19 @@ public class OnlineRetailCleaningController {
 
     private void runCleaningJob(String jobId, Instant createdAt, Integer batchSize) {
         LOGGER.info("Starting cleaning job {} (batchSize={})", jobId, batchSize);
-        jobsById.computeIfPresent(
-            jobId,
-            (ignored, existingJob) -> new CleaningJobResource(
-                existingJob.jobId(),
-                STATUS_RUNNING,
-                existingJob.createdAt(),
-                existingJob.summary()
-            )
-        );
+        // Seed per-thread context so deep pipeline code can emit progress updates
+        // without receiving jobId as an explicit parameter.
+        progressStore.setCurrentJobId(jobId);
+        progressStore.setRunning(jobId);
 
         try {
             CleaningRunSummary summary = cleaningPipelineService.runCleaning(batchSize);
-            jobsById.put(
-                jobId,
-                new CleaningJobResource(jobId, STATUS_COMPLETED, createdAt, summary)
-            );
+            CleaningJobResource current = progressStore.getJob(jobId);
+            long processed = current == null ? 0L : current.processedCount();
+            long total = current == null ? 0L : current.totalCount();
+            progressStore.completeJob(jobId, createdAt, summary, processed, total);
+            // Always clear thread-local context before exiting this async task.
+            progressStore.clearCurrentJobId();
             LOGGER.info(
                 "Cleaning job {} completed: processed={}, inserted={}, rejected={}, autoCleaned={}, returns={}",
                 jobId,
@@ -128,23 +124,19 @@ public class OnlineRetailCleaningController {
             );
             // Catch broad failures so job state does not remain RUNNING forever.
         } catch (Exception exception) {
-            jobsById.put(
-                jobId,
-                new CleaningJobResource(jobId, STATUS_FAILED, createdAt, null)
-            );
+            progressStore.failJob(jobId, createdAt);
+            progressStore.clearCurrentJobId();
             LOGGER.error("Cleaning job {} failed with exception", jobId, exception);
         } catch (Throwable throwable) {
-            jobsById.put(
-                jobId,
-                new CleaningJobResource(jobId, STATUS_FAILED, createdAt, null)
-            );
+            progressStore.failJob(jobId, createdAt);
+            progressStore.clearCurrentJobId();
             LOGGER.error("Cleaning job {} failed with throwable", jobId, throwable);
         }
     }
 
     @GetMapping("/{jobId}")
     public ResponseEntity<CleaningJobResource> getCleaningJob(@PathVariable String jobId) {
-        CleaningJobResource jobResource = jobsById.get(jobId);
+        CleaningJobResource jobResource = progressStore.getJob(jobId);
         if (jobResource == null) {
             LOGGER.info("Cleaning job {} not found", jobId);
             return ResponseEntity.notFound().build();

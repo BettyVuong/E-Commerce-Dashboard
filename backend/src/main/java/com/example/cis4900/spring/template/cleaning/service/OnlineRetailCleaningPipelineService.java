@@ -13,6 +13,7 @@ import java.sql.Timestamp;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
@@ -36,15 +37,28 @@ public class OnlineRetailCleaningPipelineService {
     private final JdbcTemplate jdbcTemplate;
     private final OnlineRetailRowCleaner rowCleaner;
     private final ObjectMapper objectMapper;
+    // Shared singleton store used by controller polling and pipeline updates.
+    private final CleaningProgressStore progressStore;
+
+    @Autowired
+    public OnlineRetailCleaningPipelineService(
+        JdbcTemplate jdbcTemplate,
+        OnlineRetailRowCleaner rowCleaner,
+        ObjectMapper objectMapper,
+        CleaningProgressStore progressStore
+    ) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.rowCleaner = rowCleaner;
+        this.objectMapper = objectMapper;
+        this.progressStore = progressStore;
+    }
 
     public OnlineRetailCleaningPipelineService(
         JdbcTemplate jdbcTemplate,
         OnlineRetailRowCleaner rowCleaner,
         ObjectMapper objectMapper
     ) {
-        this.jdbcTemplate = jdbcTemplate;
-        this.rowCleaner = rowCleaner;
-        this.objectMapper = objectMapper;
+        this(jdbcTemplate, rowCleaner, objectMapper, null);
     }
 
     @Transactional
@@ -60,6 +74,17 @@ public class OnlineRetailCleaningPipelineService {
         long rowsFlaggedRejected = 0L;
         long rowsFlaggedAutoCleaned = 0L;
         long returnsDetected = 0L;
+
+        long totalCount = 0L;
+        if (progressStore != null) {
+            try {
+                // Snapshot total rows at run start for progress and ETA calculations.
+                totalCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM dirty_data", Long.class);
+            } catch (Exception e) {
+                // Keep cleaning resilient even if counting fails.
+                totalCount = 0L;
+            }
+        }
 
         // Track the last processed id so each batch picks up after the previous one.
         int lastSeenId = 0;
@@ -102,6 +127,18 @@ public class OnlineRetailCleaningPipelineService {
                     LOGGER.warn("Cleaning failed for rawRow id={}: {}", rawRow.id(), exception.getMessage());
                     rowsFlaggedRejected++;
                     insertProcessingFailure(rawRow, exception);
+                }
+                // Report progress if available
+                try {
+                    if (progressStore != null) {
+                        String jobId = progressStore.getCurrentJobId();
+                        if (jobId != null) {
+                            // Publish near real-time progress after each processed row.
+                            progressStore.updateProgress(jobId, totalRowsProcessed, totalCount);
+                        }
+                    }
+                } catch (Exception e) {
+                    LOGGER.debug("Failed to update progress: {}", e.getMessage());
                 }
             }
         } while (!batch.isEmpty());
