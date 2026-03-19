@@ -35,4 +35,22 @@ public interface RfmRepository extends JpaRepository<RfmMetric, String> {
         @Param("endDate") LocalDateTime endDate,
         @Param("country") String country
     );
+
+    @Query(value = """
+        SELECT
+            Invoice AS invoice,
+            SUM(Quantity) AS basketSize,
+            SUM(Quantity * Price) AS orderValue
+        FROM cleaned_online_retail_data
+        WHERE is_return = FALSE
+          AND InvoiceDate BETWEEN :startDate AND :endDate
+          AND (:country IS NULL OR Country = :country)
+        GROUP BY Invoice, Country
+        ORDER BY Invoice
+        """, nativeQuery = true)
+    List<InvoiceHistogramProjection> findInvoiceHistogramBase(
+        @Param("startDate") LocalDateTime startDate,
+        @Param("endDate") LocalDateTime endDate,
+        @Param("country") String country
+    );
 }
