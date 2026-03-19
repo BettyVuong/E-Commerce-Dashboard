@@ -29,8 +29,8 @@ test('Progress bar updates correctly during upload and completes', async () => {
     mockFetch
         .mockResolvedValueOnce({ ok: true, json: async () => ({}) }) // upload
         .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: '1' }) }) // start job
-        .mockResolvedValueOnce({ok: true, json: async () => ({status: 'RUNNING', progress: 0.5, processedCount: 500, totalCount: 1000, etaMs: 4000})})//Polling 1 at 50%
-        .mockResolvedValueOnce({ok: true, json: async () => ({status: 'COMPLETED', progress: 1, processedCount: 1000, totalCount: 1000, etaMs: 0})})//Polling 2 at 100%
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ status: 'RUNNING', progress: 0.5, processedCount: 500, totalCount: 1000, estimatedMillisRemaining: 4000 }) }) //Polling 1 at 50%
+        .mockResolvedValueOnce({ok: true, json: async () => ({status: 'COMPLETED', progress: 1, processedCount: 1000, totalCount: 1000, estimatedMillisRemaining: 0})})//Polling 2 at 100%
         .mockResolvedValueOnce({ ok: true, json: async () => ({ entries: [], totalEntries: 0 }) }) //fetch results
         .mockResolvedValueOnce({ ok: true, json: async () => ({ entries: [], totalEntries: 0 }) })// invalid api
         .mockResolvedValueOnce({ ok: true, json: async () => ({ entries: [], totalEntries: 0 }) }); // dirty api
@@ -82,7 +82,7 @@ test('Progress bar resets when a new upload is started after completion', async 
     mockFetch
         .mockResolvedValueOnce({ ok: true, text: async () => '' }) // upload
         .mockResolvedValueOnce({ ok: true, json: async () => ({ jobId: '1' }) }) // start job
-        .mockResolvedValueOnce({ok: true, json: async () => ({status: 'COMPLETED', progress: 1, processedCount: 1000, totalCount: 1000, etaMs: 0})})//Job status completion
+        .mockResolvedValueOnce({ok: true, json: async () => ({status: 'COMPLETED', progress: 1, processedCount: 1000, totalCount: 1000, estimatedMillisRemaining: 0})})//Job status completion
         .mockResolvedValueOnce({ ok: true, json: async () => ({ entries: [], totalEntries: 0 }) }) //fetch results
         .mockResolvedValueOnce({ ok: true, json: async () => ({ entries: [], totalEntries: 0 }) })// invalid api
         .mockResolvedValueOnce({ ok: true, json: async () => ({ entries: [], totalEntries: 0 }) }) // dirty api

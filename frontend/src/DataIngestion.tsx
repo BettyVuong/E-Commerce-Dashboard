@@ -310,7 +310,7 @@ export const DataIngestion: React.FC = () => {
                         setJobProgress(typeof statusData.progress === 'number' ? statusData.progress : 0);
                         setJobProcessedCount(typeof statusData.processedCount === 'number' ? statusData.processedCount : 0);
                         setJobTotalCount(typeof statusData.totalCount === 'number' ? statusData.totalCount : 0);
-                        setjobETAMs_remain(typeof statusData.etaMs === 'number' ? statusData.etaMs : null);
+                        setjobETAMs_remain(typeof statusData.estimatedMillisRemaining === 'number' ? statusData.estimatedMillisRemaining : null);
 
                         if (status === 'COMPLETED') {
                             clearInterval(pollInterval);
@@ -412,10 +412,10 @@ export const DataIngestion: React.FC = () => {
                     {/* Job progress bar */}
                     {!isViewingExisting && (
                         <>
-                            <div style={{ border: '1px solid #777', borderRadius: '4px', width: '100%', height: '20px', marginBottom: '10px' }}>
-                                <div style={{ width: `${jobProgress}%`, height: '100%', backgroundColor: '#4caf50', borderRadius: '4px' }}>
-                                
-                                </div>
+                            <div style={{ border: '1px solid #bbb', borderRadius: '11px', width: '100%', height: '22px', 
+                                marginBottom: '10px', backgroundColor: '#e0e0e0', overflow: 'hidden'}}>
+                                <div style={{width: `${Math.round(jobProgress * 100)}%`, height: '100%', backgroundColor: '#4caf50', 
+                                    borderRadius: '11px', transition: 'width 0.5s ease', minWidth: jobProgress > 0 ? '22px' : '0'}} />
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', color: '#444' }}>
