@@ -1,5 +1,9 @@
 package com.example.cis4900.spring.template.rfm.controller;
 
+import com.example.cis4900.spring.template.rfm.model.HistogramBin;
+import com.example.cis4900.spring.template.rfm.model.HistogramMetric;
+import com.example.cis4900.spring.template.rfm.model.HistogramResponse;
+import com.example.cis4900.spring.template.rfm.model.HistogramSummary;
 import com.example.cis4900.spring.template.rfm.service.RfmService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,13 +14,16 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(RfmController.class)
-public class RfmControllerTest {
+class RfmControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
@@ -26,10 +33,8 @@ public class RfmControllerTest {
 
     @Test
     void testGetScatterPlotData_ReturnsOk() throws Exception {
-        // mock service to return an empty list
-        when(rfmService.getRfmData(any(), any(), anyString())).thenReturn(List.of());
+        when(rfmService.getRfmData(any(), any(), nullable(String.class))).thenReturn(List.of());
 
-        // Test GET request with required ISO date parameters
         mockMvc.perform(get("/api/rfm/scatter-plot")
                 .param("startDate", "2020-01-01T00:00:00")
                 .param("endDate", "2021-01-01T00:00:00")
@@ -38,9 +43,68 @@ public class RfmControllerTest {
     }
 
     @Test
-    void testGetScatterPlotData_MissingParams_ReturnsBadRequest() throws Exception {
-        // missing startDate should trigger a 400 error
+    void testGetScatterPlotData_WithoutCountryPassesNull() throws Exception {
+        when(rfmService.getRfmData(any(), any(), isNull())).thenReturn(List.of());
+
         mockMvc.perform(get("/api/rfm/scatter-plot")
+                .param("startDate", "2020-01-01T00:00:00")
+                .param("endDate", "2021-01-01T00:00:00"))
+                .andExpect(status().isOk());
+
+        verify(rfmService).getRfmData(any(), any(), isNull());
+    }
+
+    @Test
+    void testGetScatterPlotData_MissingParams_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/rfm/scatter-plot")
+                .param("endDate", "2021-01-01T00:00:00"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testGetHistogramData_ReturnsOkAndJsonBody() throws Exception {
+        HistogramResponse response = new HistogramResponse(
+            new HistogramMetric(
+                new HistogramSummary(2, 120.0, 100.0, 220.0),
+                List.of(
+                    new HistogramBin(0.0, 50.0, 1, false),
+                    new HistogramBin(50.0, 1000.0, 1, true)
+                )
+            ),
+            new HistogramMetric(
+                new HistogramSummary(2, 300.0, 250.0, 500.0),
+                List.of(
+                    new HistogramBin(0.0, 100.0, 1, false),
+                    new HistogramBin(100.0, 10000.0, 1, true)
+                )
+            )
+        );
+
+        when(rfmService.getHistogramData(any(), any(), nullable(String.class))).thenReturn(response);
+
+        mockMvc.perform(get("/api/rfm/histograms")
+                .param("startDate", "2020-01-01T00:00:00")
+                .param("endDate", "2021-01-01T00:00:00"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.basketSize.summary.invoiceCount").value(2))
+                .andExpect(jsonPath("$.basketSize.summary.average").value(120.0))
+                .andExpect(jsonPath("$.basketSize.bins[1].isOutlier").value(true))
+                .andExpect(jsonPath("$.orderValue.bins[0].isOutlier").value(false));
+
+        verify(rfmService).getHistogramData(any(), any(), isNull());
+    }
+
+    @Test
+    void testGetHistogramData_MissingParams_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/rfm/histograms")
+                .param("endDate", "2021-01-01T00:00:00"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void testGetHistogramData_InvalidDate_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/rfm/histograms")
+                .param("startDate", "not-a-date")
                 .param("endDate", "2021-01-01T00:00:00"))
                 .andExpect(status().isBadRequest());
     }
