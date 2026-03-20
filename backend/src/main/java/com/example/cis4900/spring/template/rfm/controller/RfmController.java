@@ -1,5 +1,6 @@
 package com.example.cis4900.spring.template.rfm.controller;
 
+import com.example.cis4900.spring.template.rfm.model.HistogramResponse;
 import com.example.cis4900.spring.template.rfm.model.RfmMetric;
 import com.example.cis4900.spring.template.rfm.service.RfmService;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -30,5 +31,14 @@ public class RfmController {
             @RequestParam(required = false) String country) {
         
         return rfmService.getRfmData(startDate, endDate, country);
+    }
+
+    @GetMapping("/histograms")
+    public HistogramResponse getHistogramData(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
+            @RequestParam(required = false) String country) {
+
+        return rfmService.getHistogramData(startDate, endDate, country);
     }
 }
