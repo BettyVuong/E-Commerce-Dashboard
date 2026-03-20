@@ -21,6 +21,7 @@ public class RfmService {
     private static final double HISTOGRAM_CAP_PERCENTILE = 0.995;
     private static final double BASKET_SIZE_BIN_WIDTH = 50.0;
     private static final double ORDER_VALUE_BIN_WIDTH = 100.0;
+    private static final int TARGET_NORMAL_BIN_COUNT = 8;
 
     private final RfmRepository rfmRepository;
 
@@ -119,11 +120,19 @@ public class RfmService {
             return List.of();
         }
 
+        double min = sorted.get(0);
         double max = sorted.get(sorted.size() - 1);
         double cappedMax = calculatePercentileNearestRank(sorted, HISTOGRAM_CAP_PERCENTILE);
-        double normalEnd = roundUpToStep(cappedMax, binWidth);
+        double effectiveBinWidth = chooseBinWidth(min, cappedMax, binWidth);
+        double normalStart = roundDownToStep(min, effectiveBinWidth);
+        double normalEnd = roundUpToStep(cappedMax, effectiveBinWidth);
+
+        if (normalEnd <= normalStart) {
+            normalEnd = normalStart + effectiveBinWidth;
+        }
+
         boolean hasOverflow = max > normalEnd;
-        int normalBinCount = (int) Math.max(1, Math.ceil(normalEnd / binWidth));
+        int normalBinCount = (int) Math.max(1, Math.ceil((normalEnd - normalStart) / effectiveBinWidth));
         long[] counts = new long[normalBinCount + (hasOverflow ? 1 : 0)];
 
         for (double value : sorted) {
@@ -132,7 +141,7 @@ public class RfmService {
                 continue;
             }
 
-            int index = (int) (value / binWidth);
+            int index = (int) ((value - normalStart) / effectiveBinWidth);
             if (index >= normalBinCount) {
                 index = normalBinCount - 1;
             }
@@ -142,8 +151,8 @@ public class RfmService {
         List<HistogramBin> bins = new ArrayList<>();
 
         for (int i = 0; i < normalBinCount; i++) {
-            double start = i * binWidth;
-            double end = (i + 1) * binWidth;
+            double start = normalStart + (i * effectiveBinWidth);
+            double end = start + effectiveBinWidth;
 
             bins.add(new HistogramBin(
                 round(start),
@@ -163,6 +172,34 @@ public class RfmService {
         }
 
         return bins;
+    }
+
+    private double chooseBinWidth(double min, double cappedMax, double preferredMaxBinWidth) {
+        double range = Math.max(cappedMax - min, preferredMaxBinWidth / TARGET_NORMAL_BIN_COUNT);
+        double suggestedWidth = nextNiceStep(range / TARGET_NORMAL_BIN_COUNT);
+        return Math.min(preferredMaxBinWidth, suggestedWidth);
+    }
+
+    private double nextNiceStep(double value) {
+        double exponent = Math.pow(10, Math.floor(Math.log10(value)));
+        double fraction = value / exponent;
+        double niceFraction;
+
+        if (fraction <= 1) {
+            niceFraction = 1;
+        } else if (fraction <= 2) {
+            niceFraction = 2;
+        } else if (fraction <= 5) {
+            niceFraction = 5;
+        } else {
+            niceFraction = 10;
+        }
+
+        return niceFraction * exponent;
+    }
+
+    private double roundDownToStep(double value, double step) {
+        return Math.floor(value / step) * step;
     }
 
     private double roundUpToStep(double value, double step) {

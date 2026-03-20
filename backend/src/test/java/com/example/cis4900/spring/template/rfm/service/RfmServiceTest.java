@@ -107,17 +107,45 @@ class RfmServiceTest {
         assertEquals(1, result.basketSize().bins().get(0).count());
         assertEquals(1, result.basketSize().bins().get(4).count());
         assertFalse(result.basketSize().bins().get(4).isOutlier());
+        assertEquals(0.0, result.basketSize().bins().get(0).rangeStart());
+        assertEquals(50.0, result.basketSize().bins().get(0).rangeEnd());
 
         assertEquals(5, result.orderValue().summary().invoiceCount());
         assertEquals(210.0, result.orderValue().summary().average());
         assertEquals(210.0, result.orderValue().summary().median());
         assertEquals(410.0, result.orderValue().summary().p90());
-        assertEquals(5, result.orderValue().bins().size());
+        assertEquals(9, result.orderValue().bins().size());
         assertEquals(1, result.orderValue().bins().get(0).count());
-        assertEquals(1, result.orderValue().bins().get(4).count());
-        assertFalse(result.orderValue().bins().get(4).isOutlier());
+        assertEquals(1, result.orderValue().bins().get(8).count());
+        assertFalse(result.orderValue().bins().get(8).isOutlier());
+        assertEquals(0.0, result.orderValue().bins().get(0).rangeStart());
+        assertEquals(50.0, result.orderValue().bins().get(0).rangeEnd());
 
         verify(rfmRepository, times(1)).findInvoiceHistogramBase(start, end, "Canada");
+    }
+
+    @Test
+    void testGetHistogramData_UsesSmallerReadableBinsForSmallRanges() {
+        LocalDateTime start = LocalDateTime.of(2023, 1, 1, 0, 0);
+        LocalDateTime end = LocalDateTime.of(2023, 12, 31, 23, 59);
+
+        when(rfmRepository.findInvoiceHistogramBase(start, end, null)).thenReturn(List.of(
+            projection("INV-1", 101, 201),
+            projection("INV-2", 105, 205),
+            projection("INV-3", 109, 209)
+        ));
+
+        HistogramResponse result = rfmService.getHistogramData(start, end, null);
+
+        assertTrue(result.basketSize().bins().size() > 2);
+        assertEquals(101.0, result.basketSize().bins().get(0).rangeStart());
+        assertEquals(1.0,
+            result.basketSize().bins().get(0).rangeEnd() - result.basketSize().bins().get(0).rangeStart());
+
+        assertTrue(result.orderValue().bins().size() > 2);
+        assertEquals(200.0, result.orderValue().bins().get(0).rangeStart());
+        assertEquals(2.0,
+            result.orderValue().bins().get(0).rangeEnd() - result.orderValue().bins().get(0).rangeStart());
     }
 
     @Test
