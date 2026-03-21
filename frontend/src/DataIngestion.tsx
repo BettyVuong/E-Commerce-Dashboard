@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 // Components
 import { RFMScatterPlot } from './components/RFMScatterPlot';
+import { RFMHistogram } from './components/RFMHistogram';
 
 type PrimitiveCell = string | number | boolean | null | undefined;
 
@@ -23,8 +24,8 @@ interface CleanRow {
     quantity?: PrimitiveCell;
     price?: PrimitiveCell;
     customerId?: PrimitiveCell;
-    invoiceDate?: string; // to get the date range for the rfm scatter plot
-    country?: string; // to get the country for the rfm scatter plot
+    invoiceDate?: string; // to get the date range for the rfm scatter plot & other graphs
+    country?: string; // to get the country for the rfm scatter plot & other grapphs
 }
 
 interface InvalidRow {
@@ -34,7 +35,7 @@ interface InvalidRow {
     validationErrors?: string;
 }
 
-type ResultsTab = 'clean' | 'invalid' | 'rfm-scatter-results' | 'dirty';
+type ResultsTab = 'clean' | 'invalid' | 'rfm-scatter-results' | 'rfm-histogram-results' | 'dirty';
 
 const parseRawValues = (rawValues?: string): Record<string, PrimitiveCell> => {
     if (!rawValues) {
@@ -50,7 +51,7 @@ const parseRawValues = (rawValues?: string): Record<string, PrimitiveCell> => {
 };
 
 // Helper to get the date range from the clean data
-// walks through the clean data and finds the min and max invoiceDate to determine the date range for the rfm scatter plot
+// walks through the clean data and finds the min and max invoiceDate to determine the date range for the rfm graphs
 const deriveDateRange = (rows: CleanRow[]): { startDate: string; endDate: string } => {
     const dates = rows
         .map((r) => r.invoiceDate?.slice(0, 10))   // keep only YYYY-MM-DD
@@ -64,7 +65,7 @@ const deriveDateRange = (rows: CleanRow[]): { startDate: string; endDate: string
 export const DataIngestion: React.FC = () => {
     const [step, setStep] = useState<'upload' | 'processing' | 'results'>('upload');
     const [processingMessage, setProcessingMessage] = useState('Uploading and cleaning data...');
-    const [activeTab, setActiveTab] = useState<'clean' | 'invalid' | 'rfm-scatter-results' | 'dirty'>('clean');
+    const [activeTab, setActiveTab] = useState<'clean' | 'invalid' | 'rfm-scatter-results' | 'rfm-histogram-results' | 'dirty'>('clean');
 
     // Pagination state
     const [page, setPage] = useState(0);
@@ -169,6 +170,14 @@ export const DataIngestion: React.FC = () => {
             // for the rfm scatter plot page
             if (mode === 'rfm-scatter-results') {
                 // RFMScatterPlot handles its own fetch
+                // onlyn need to ensure cleanData is loaded/updated
+                const cleanCount = cleanData.length === 0 ? await fetchCleanPage(0) : cleanTotal;
+                return { clean: cleanCount, invalid: invalidTotal, dirty: dirtyTotal };
+            }
+
+            // for the rfm histogram page
+            if (mode === 'rfm-histogram-results') {
+                // RFMHistogram handles its own fetch
                 // onlyn need to ensure cleanData is loaded/updated
                 const cleanCount = cleanData.length === 0 ? await fetchCleanPage(0) : cleanTotal;
                 return { clean: cleanCount, invalid: invalidTotal, dirty: dirtyTotal };
@@ -432,6 +441,22 @@ export const DataIngestion: React.FC = () => {
                             RFM Scatter Plot
                         </button>
                         <button
+                            onClick={() => handleTabChange('rfm-histogram-results')}
+                            style={{
+                                fontWeight: activeTab === 'rfm-histogram-results' ? 'bold' : 'normal',
+                                backgroundColor: activeTab === 'rfm-histogram-results' ? '#e0e0e0' : '#e0e0e0',
+                                border: '1px solid #777',
+                                borderBottom: activeTab === 'rfm-histogram-results' ? 'none' : '1px solid #777',
+                                padding: '5px 10px',
+                                position: 'relative',
+                                top: '1px',
+                                zIndex: activeTab === 'rfm-histogram-results' ? 1 : 0
+                            }}
+                        >
+                            RFM Histograms
+
+                        </button>
+                        <button
                             onClick={() => handleTabChange('dirty')}
                             style={{
                                 fontWeight: activeTab === 'dirty' ? 'bold' : 'normal',
@@ -559,7 +584,25 @@ export const DataIngestion: React.FC = () => {
                                 />
                             </div>
                         )}
- 
+
+                        {/* RFM Histograms */}
+                        {activeTab === 'rfm-histogram-results' && (
+                            <div style={{ padding: '10px' }}>
+                                {/*
+                                  * The RFMHistogram component is fully self-contained:
+                                  * it owns its own filter state and API calls.
+                                  * We pass date-range hints derived from cleanData as
+                                  * convenient pre-fills so the analyst doesn't have to
+                                  * type them manually.
+                                  */}
+                                <RFMHistogram
+                                    initialStartDate={rfmStartDate}
+                                    initialEndDate={rfmEndDate}
+                                    initialCountry={rfmCountry}
+                                />
+                            </div>
+                        )}
+
                         {activeTab === 'dirty' && (
                             <div style={{ padding: '0 10px' }}>
                                 <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
