@@ -234,11 +234,15 @@ export const RFMHistogram: React.FC<RFMHistogramProps> = ({
                 endDate: toISOLocal(endDate, true),
             });
             if (country) params.set('country', country);
+
+            // fetch histogram data from backend
             const res = await fetch(`/api/rfm/histograms?${params.toString()}`);
             if (!res.ok) throw new Error(`Server error ${res.status}: ${res.statusText}`);
             const json: HistogramResponse = await res.json();
             setData(json);
             setHasFetched(true);
+
+
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Unknown error');
         } finally {

@@ -265,7 +265,7 @@ export const DataIngestion: React.FC = () => {
             const cleaningResponse = await fetch('/api/cleaning-jobs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ batchSize: 2000 })
+                body: JSON.stringify({ batchSize: 1000 })
             });
 
             if (cleaningResponse.ok) {
