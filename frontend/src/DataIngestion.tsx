@@ -217,6 +217,7 @@ export const DataIngestion: React.FC = () => {
             const totals = await fetchResults(0, 'all');
             if (totals.clean === 0 && totals.invalid === 0 && totals.dirty === 0) {
                 alert('No existing data found yet. Upload a file to create results.');
+                setIsViewingExisting(false);
                 setStep('upload');
                 return;
             }
@@ -224,7 +225,6 @@ export const DataIngestion: React.FC = () => {
             setStep('results');
         } catch (error) {
             console.error('Load Existing Results Error:', error);
-            setIsViewingExisting(false);
             alert('Could not load existing results. Please try again.');
             setIsViewingExisting(false);
             setStep('upload');
