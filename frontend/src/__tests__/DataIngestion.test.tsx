@@ -25,6 +25,25 @@ jest.mock('../components/RFMScatterPlot', () => ({
     ),
 }));
 
+// mock RFMHistogram to verify it gets rendered and receives the correct props 
+jest.mock('../components/RFMHistogram', () => ({
+    RFMHistogram: ({
+        initialStartDate,
+        initialEndDate,
+        initialCountry,
+    }: {
+        initialStartDate?: string;
+        initialEndDate?: string;
+        initialCountry?: string;
+    }) => (
+        <div data-testid="rfm-histogram">
+            <span data-testid="rfm-histogram-start">{initialStartDate}</span>
+            <span data-testid="rfm-histogram-end">{initialEndDate}</span>
+            <span data-testid="rfm-histogram-country">{initialCountry}</span>
+        </div>
+    ),
+}));
+
 describe('DataIngestion Component Unit Tests', () => {
 
     beforeEach(() => {
@@ -426,5 +445,81 @@ describe('DataIngestion Component Unit Tests', () => {
             // No country should be passed — rfm-country span should be empty
             expect(screen.getByTestId('rfm-country')).toHaveTextContent('');
         });
+    });
+
+    // #95: NEW RFM Histogram tab tests
+
+    test('renders the RFM Histograms tab button in results', async () => {
+        await goToResults({ entries: [], totalEntries: 0, status: 'COMPLETED' });
+        expect(screen.getByRole('button', { name: /RFM Histograms/i })).toBeInTheDocument();
+    });
+
+    test('clicking RFM Histograms tab renders the RFMHistogram component', async () => {
+        await goToResults({ entries: [], totalEntries: 0, status: 'COMPLETED' });
+        fireEvent.click(screen.getByRole('button', { name: /RFM Histograms/i }));
+        expect(screen.getByTestId('rfm-histogram')).toBeInTheDocument();
+    });
+
+    test('passes derived date range from clean data to RFMHistogram', async () => {
+        const mockData = {
+            entries: [
+                { invoice: 'INV001', invoiceDate: '2020-03-15T00:00:00', country: 'United Kingdom' },
+                { invoice: 'INV002', invoiceDate: '2021-11-20T00:00:00', country: 'United Kingdom' },
+            ],
+            totalEntries: 2,
+            status: 'COMPLETED',
+        };
+        await goToResults(mockData);
+
+        fireEvent.click(screen.getByRole('button', { name: /RFM Histograms/i }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('rfm-histogram-start')).toHaveTextContent('2020-03-15');
+            expect(screen.getByTestId('rfm-histogram-end')).toHaveTextContent('2021-11-20');
+        });
+    });
+
+    test('passes most common country from clean data to RFMHistogram', async () => {
+        const mockData = {
+            entries: [
+                { invoice: 'INV001', invoiceDate: '2020-01-01T00:00:00', country: 'Germany' },
+                { invoice: 'INV002', invoiceDate: '2020-02-01T00:00:00', country: 'Germany' },
+                { invoice: 'INV003', invoiceDate: '2020-03-01T00:00:00', country: 'France' },
+            ],
+            totalEntries: 3,
+            status: 'COMPLETED',
+        };
+        await goToResults(mockData);
+
+        fireEvent.click(screen.getByRole('button', { name: /RFM Histograms/i }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('rfm-histogram-country')).toHaveTextContent('Germany');
+        });
+    });
+
+    test('switching away from RFM Histograms tab and back still renders the component', async () => {
+        await goToResults({ entries: [], totalEntries: 0, status: 'COMPLETED' });
+
+        fireEvent.click(screen.getByRole('button', { name: /RFM Histograms/i }));
+        expect(screen.getByTestId('rfm-histogram')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /Invalid Items/i }));
+        expect(screen.queryByTestId('rfm-histogram')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /RFM Histograms/i }));
+        expect(screen.getByTestId('rfm-histogram')).toBeInTheDocument();
+    });
+
+    test('RFM Histogram and RFM Scatter Plot tabs are independent', async () => {
+        await goToResults({ entries: [], totalEntries: 0, status: 'COMPLETED' });
+
+        fireEvent.click(screen.getByRole('button', { name: /RFM Scatter Plot/i }));
+        expect(screen.getByTestId('rfm-scatter-plot')).toBeInTheDocument();
+        expect(screen.queryByTestId('rfm-histogram')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /RFM Histograms/i }));
+        expect(screen.getByTestId('rfm-histogram')).toBeInTheDocument();
+        expect(screen.queryByTestId('rfm-scatter-plot')).not.toBeInTheDocument();
     });
 });
