@@ -224,6 +224,7 @@ export const DataIngestion: React.FC = () => {
             setStep('results');
         } catch (error) {
             console.error('Load Existing Results Error:', error);
+            setIsViewingExisting(false);
             alert('Could not load existing results. Please try again.');
             setIsViewingExisting(false);
             setStep('upload');
