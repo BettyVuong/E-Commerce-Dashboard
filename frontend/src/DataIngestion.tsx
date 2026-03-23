@@ -81,7 +81,14 @@ export const DataIngestion: React.FC = () => {
     const [dirtyData, setDirtyData] = useState<DirtyRow[]>([]);
     const [dirtyTotal, setDirtyTotal] = useState(0);
     const [isDownloading, setIsDownloading] = useState(false);
-
+    
+    // Job status state for loading bar
+    const [jobProgress, setJobProgress] = useState(0);
+    const [jobProcessedCount, setJobProcessedCount] = useState(0);
+    const [jobTotalCount, setJobTotalCount] = useState(0);
+    const [jobETAMs_remain, setjobETAMs_remain] = useState<number | null>(null);
+    const [isViewingExisting, setIsViewingExisting] = useState(false);
+   
     // RFM filter state - derived from clean data for now, but could be user inputs in the future
     const [rfmStartDate, setRfmStartDate] = useState('');
     const [rfmEndDate, setRfmEndDate] = useState('');
@@ -211,6 +218,7 @@ export const DataIngestion: React.FC = () => {
     // Allows users to open previously processed DB-backed data without new upload.
     const handleViewExistingResults = async () => {
         try {
+            setIsViewingExisting(true);
             setStep('processing');
             setProcessingMessage('Loading existing data...');
             setPage(0);
@@ -218,14 +226,16 @@ export const DataIngestion: React.FC = () => {
             const totals = await fetchResults(0, 'all');
             if (totals.clean === 0 && totals.invalid === 0 && totals.dirty === 0) {
                 alert('No existing data found yet. Upload a file to create results.');
+                setIsViewingExisting(false);
                 setStep('upload');
                 return;
             }
-
+            setIsViewingExisting(false);
             setStep('results');
         } catch (error) {
             console.error('Load Existing Results Error:', error);
             alert('Could not load existing results. Please try again.');
+            setIsViewingExisting(false);
             setStep('upload');
         }
     };
@@ -243,7 +253,12 @@ export const DataIngestion: React.FC = () => {
 
         setStep('processing');
         setProcessingMessage('Uploading file...');
-
+        //Resetting state at the start of a new upload
+        setJobProgress(0);
+        setJobProcessedCount(0);
+        setJobTotalCount(0);
+        setjobETAMs_remain(null);
+        
         const formData = new FormData();
         formData.append('file', file);
 
@@ -300,6 +315,12 @@ export const DataIngestion: React.FC = () => {
                         const statusData = await statusRes.json();
                         const status = String(statusData.status ?? 'UNKNOWN');
                         setProcessingMessage(`Cleaning status: ${status}`);
+                        
+                        //cleaning bar update
+                        setJobProgress(typeof statusData.progress === 'number' ? statusData.progress : 0);
+                        setJobProcessedCount(typeof statusData.processedCount === 'number' ? statusData.processedCount : 0);
+                        setJobTotalCount(typeof statusData.totalCount === 'number' ? statusData.totalCount : 0);
+                        setjobETAMs_remain(typeof statusData.estimatedMillisRemaining === 'number' ? statusData.estimatedMillisRemaining : null);
 
                         if (status === 'COMPLETED') {
                             clearInterval(pollInterval);
@@ -362,6 +383,18 @@ export const DataIngestion: React.FC = () => {
         }
     };
 
+    const rowCountText = jobTotalCount > 0
+    ? `${jobProcessedCount.toLocaleString()} / ${jobTotalCount.toLocaleString()} rows`
+    : 'Starting…';
+
+    const percentageText = jobTotalCount > 0
+        ? `${Math.round(jobProgress * 100)}%`
+        : '';
+
+    const etaText = jobETAMs_remain !== null && jobETAMs_remain > 0
+        ? `~${Math.ceil(jobETAMs_remain / 1000)}s remaining`
+        : jobProgress === 1 ? 'Done' : '';
+        
     return (
         <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
 
@@ -385,6 +418,23 @@ export const DataIngestion: React.FC = () => {
                 <div>
                     <h2>Processing...</h2>
                     <p>{processingMessage}</p>
+
+                    {/* Job progress bar */}
+                    {!isViewingExisting && (
+                        <>
+                            <div style={{ border: '1px solid #bbb', borderRadius: '11px', width: '100%', height: '22px', 
+                                marginBottom: '10px', backgroundColor: '#e0e0e0', overflow: 'hidden'}}>
+                                <div style={{width: `${Math.round(jobProgress * 100)}%`, height: '100%', backgroundColor: '#4caf50', 
+                                    borderRadius: '11px', transition: 'width 0.5s ease', minWidth: jobProgress > 0 ? '22px' : '0'}} />
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', color: '#444' }}>
+                                <span>{rowCountText}</span>
+                                <span style={{ fontWeight: 'bold', fontSize: '15px' }}>{percentageText}</span>
+                                <span>{etaText}</span>
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 
