@@ -13,7 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.cis4900.spring.template.ingest.service.IngestDataService;
 
 @RestController
-@RequestMapping("/api/ingest")
+@RequestMapping("/api/ingests")
 public class IngestDataController {
     private static final Logger LOGGER = LoggerFactory.getLogger(IngestDataController.class);
 
@@ -23,7 +23,9 @@ public class IngestDataController {
         this.ingestDataService = ingestDataService;
     }
 
-    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    // RESTful create endpoint: posting multipart content creates a new ingest resource.
+    // We intentionally use the collection noun path (/api/ingests) and HTTP POST for Create.
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile file) {
         String originalFilename = file.getOriginalFilename();
         long fileSizeBytes = file.getSize();

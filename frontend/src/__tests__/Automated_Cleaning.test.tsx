@@ -30,7 +30,8 @@ test('Fetch upload API and Cleaning API', async () => {
    fireEvent.change(screen.getByLabelText('Select Data File:'), { target: { files: [file] } });
    fireEvent.click(screen.getByText('Upload and Clean Data'))
     await waitFor(() => {
-        expect(mockFetch).toHaveBeenNthCalledWith(1, '/api/ingest/upload', expect.objectContaining({ method: 'POST'}))
+        // Assert upload now targets the RESTful ingest collection endpoint.
+        expect(mockFetch).toHaveBeenNthCalledWith(1, '/api/ingests', expect.objectContaining({ method: 'POST'}))
         expect(mockFetch).toHaveBeenNthCalledWith(2, '/api/cleaning-jobs', expect.objectContaining({ method: 'POST'}))
 
     });

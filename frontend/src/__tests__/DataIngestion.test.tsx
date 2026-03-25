@@ -113,7 +113,8 @@ describe('DataIngestion Component Unit Tests', () => {
         const exportBtn = screen.getByRole('button', { name: /Download Cleaned Data/i });
         fireEvent.click(exportBtn);
         await waitFor(() => {
-            expect(global.fetch).toHaveBeenCalledWith('/api/cleaning-data/cleaned/export');
+            // Ensure export now uses representation query against cleaned collection.
+            expect(global.fetch).toHaveBeenCalledWith('/api/cleaning-data/cleaned?format=xlsx');
         });
     });
 

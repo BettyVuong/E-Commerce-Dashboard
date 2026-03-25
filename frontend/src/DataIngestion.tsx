@@ -263,7 +263,8 @@ export const DataIngestion: React.FC = () => {
         formData.append('file', file);
 
         try {
-            const uploadResponse = await fetch('/api/ingest/upload', {
+            // RESTful ingest create route: posting multipart form data creates a new ingest resource.
+            const uploadResponse = await fetch('/api/ingests', {
                 method: 'POST',
                 body: formData
             });
@@ -360,7 +361,9 @@ export const DataIngestion: React.FC = () => {
         if (isDownloading) return;
         setIsDownloading(true);
         try {
-            const res = await fetch('/api/cleaning-data/cleaned/export');
+            // RESTful export route: same cleaned collection endpoint with an explicit
+            // representation query (format=xlsx) instead of an action-based path.
+            const res = await fetch('/api/cleaning-data/cleaned?format=xlsx');
             if (res.ok) {
                 const blob = await res.blob();
                 const url = window.URL.createObjectURL(blob);

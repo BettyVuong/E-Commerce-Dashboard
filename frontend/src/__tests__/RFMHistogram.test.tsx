@@ -324,13 +324,15 @@ describe('RFMHistogram Component Unit Tests', () => {
         });
     });
 
-    test('calls the histograms endpoint not the scatter-plot endpoint', async () => {
+    test('calls RESTful rfm endpoint with histogram view selector', async () => {
         mockFetchSuccess();
         render(<RFMHistogram />);
         await applyFilters();
         await waitFor(() => {
             const url = (global.fetch as jest.Mock).mock.calls[0][0] as string;
-            expect(url).toContain('/api/rfm/histograms');
+            expect(url).toContain('/api/rfm?');
+            expect(url).toContain('view=histogram');
+            expect(url).not.toContain('/api/rfm/histograms');
             expect(url).not.toContain('/api/rfm/scatter-plot');
         });
     });

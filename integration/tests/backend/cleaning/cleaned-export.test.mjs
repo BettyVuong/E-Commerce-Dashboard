@@ -26,7 +26,8 @@ export function defineTests(ctx) {
       run: async () => {
         await ensureCleanedDataExists(ctx, ctx.backendBaseUrl);
 
-        const res = await fetch(`${ctx.backendBaseUrl}/api/cleaning-data/cleaned/export`, {
+        // Request XLSX representation from the cleaned collection endpoint.
+        const res = await fetch(`${ctx.backendBaseUrl}/api/cleaning-data/cleaned?format=xlsx`, {
           method: "GET"
         });
 

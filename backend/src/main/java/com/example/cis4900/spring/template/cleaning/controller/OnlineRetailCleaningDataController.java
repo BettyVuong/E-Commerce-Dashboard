@@ -65,8 +65,18 @@ public class OnlineRetailCleaningDataController {
             .body(cleaningQueryService.getCleanedDataPage(page, resolvedSize));
     }
 
-    @GetMapping("/cleaned/export")
-    public ResponseEntity<StreamingResponseBody> exportCleanedData() {
+    /**
+     * Exports cleaned data as an XLSX representation of the cleaned collection.
+     *
+        * <p>REST note:
+     * - This intentionally reuses the cleaned resource path (/cleaned) and uses
+     *   a representation query parameter (format=xlsx) instead of an action path
+     *   like /cleaned/export.
+     * - The @GetMapping params selector prevents collisions with the paged JSON
+     *   endpoint above that serves /cleaned without format=xlsx.
+     */
+    @GetMapping(value = "/cleaned", params = "format=xlsx")
+    public ResponseEntity<StreamingResponseBody> exportCleanedDataAsXlsx() {
         // Handle no data case
         // Avoid sending an empty file
         if (!cleaningExportService.hasExportRows()) {

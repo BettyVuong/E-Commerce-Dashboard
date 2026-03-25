@@ -1,8 +1,8 @@
 /*
   histograms.test.mjs
 
-  Frontend integration tests for the RFM histograms proxy endpoint.
-  These tests exercise the frontend proxy `/api/rfm/histograms` to ensure
+  Frontend integration tests for the RFM histogram representation proxy endpoint.
+  These tests exercise the frontend proxy `/api/rfm?view=histogram` to ensure
   the backend and frontend wiring return the expected JSON shape and
   that date-range and country filters behave as expected.
 */
@@ -17,7 +17,7 @@ export function defineTests(ctx) {
 
         const res = await ctx.http(
           "GET",
-          `${ctx.frontendBaseUrl}/api/rfm/histograms?startDate=${start}&endDate=${end}`
+          `${ctx.frontendBaseUrl}/api/rfm?view=histogram&startDate=${start}&endDate=${end}`
         );
 
         if (res.status !== 200) {
@@ -26,7 +26,7 @@ export function defineTests(ctx) {
 
         const body = res.json;
         // Basic shape assertions
-        if (!body || typeof body !== 'object') throw new Error('expected JSON object from /api/rfm/histograms');
+        if (!body || typeof body !== 'object') throw new Error('expected JSON object from /api/rfm?view=histogram');
         for (const metric of ['basketSize', 'orderValue']) {
           if (!(metric in body)) throw new Error(`missing metric '${metric}' in histogram response`);
           const m = body[metric];
@@ -55,7 +55,7 @@ export function defineTests(ctx) {
         // Omit startDate to trigger validation -> 400 via frontend proxy
         const res = await ctx.http(
           "GET",
-          `${ctx.frontendBaseUrl}/api/rfm/histograms?endDate=2021-01-01T00:00:00`
+          `${ctx.frontendBaseUrl}/api/rfm?view=histogram&endDate=2021-01-01T00:00:00`
         );
 
         if (res.status !== 400) {
@@ -72,7 +72,7 @@ export function defineTests(ctx) {
 
         const res = await ctx.http(
           "GET",
-          `${ctx.frontendBaseUrl}/api/rfm/histograms?startDate=${start}&endDate=${end}&country=${country}`
+          `${ctx.frontendBaseUrl}/api/rfm?view=histogram&startDate=${start}&endDate=${end}&country=${country}`
         );
 
         if (res.status !== 200) {
@@ -80,7 +80,7 @@ export function defineTests(ctx) {
         }
 
         if (!res.json || typeof res.json !== 'object') {
-          throw new Error('expected JSON object from /api/rfm/histograms with country');
+          throw new Error('expected JSON object from /api/rfm?view=histogram with country');
         }
       }
     },
@@ -95,13 +95,13 @@ export function defineTests(ctx) {
 
         const wideRes = await ctx.http(
           "GET",
-          `${ctx.frontendBaseUrl}/api/rfm/histograms?startDate=${wideStart}&endDate=${wideEnd}`
+          `${ctx.frontendBaseUrl}/api/rfm?view=histogram&startDate=${wideStart}&endDate=${wideEnd}`
         );
         if (wideRes.status !== 200) throw new Error(`expected 200 for wide range, got ${wideRes.status}`);
 
         const narrowRes = await ctx.http(
           "GET",
-          `${ctx.frontendBaseUrl}/api/rfm/histograms?startDate=${narrowStart}&endDate=${narrowEnd}`
+          `${ctx.frontendBaseUrl}/api/rfm?view=histogram&startDate=${narrowStart}&endDate=${narrowEnd}`
         );
         if (narrowRes.status !== 200) throw new Error(`expected 200 for narrow range, got ${narrowRes.status}`);
 

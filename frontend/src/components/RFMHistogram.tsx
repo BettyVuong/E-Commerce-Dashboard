@@ -230,13 +230,15 @@ export const RFMHistogram: React.FC<RFMHistogramProps> = ({
         setError(null);
         try {
             const params = new URLSearchParams({
+                // RESTful representation selector for /api/rfm.
+                view: 'histogram',
                 startDate: toISOLocal(startDate, false),
                 endDate: toISOLocal(endDate, true),
             });
             if (country) params.set('country', country);
 
             // fetch histogram data from backend
-            const res = await fetch(`/api/rfm/histograms?${params.toString()}`);
+            const res = await fetch(`/api/rfm?${params.toString()}`);
             if (!res.ok) throw new Error(`Server error ${res.status}: ${res.statusText}`);
             const json: HistogramResponse = await res.json();
             setData(json);

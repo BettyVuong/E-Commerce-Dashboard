@@ -1,8 +1,8 @@
 /*
   rfm-scatter.test.mjs
 
-  Frontend integration tests for the RFM scatter-plot proxy endpoint.
-  These tests exercise the frontend proxy `/api/rfm/scatter-plot` to
+  Frontend integration tests for the RFM scatter representation proxy endpoint.
+  These tests exercise the frontend proxy `/api/rfm?view=scatter` to
   ensure the backend validation and JSON shape are preserved.
 */
 
@@ -15,7 +15,7 @@ export function defineTests(ctx) {
         const end = encodeURIComponent("2021-01-01T00:00:00");
         const res = await ctx.http(
           "GET",
-          `${ctx.frontendBaseUrl}/api/rfm/scatter-plot?startDate=${start}&endDate=${end}`
+          `${ctx.frontendBaseUrl}/api/rfm?view=scatter&startDate=${start}&endDate=${end}`
         );
 
         if (res.status !== 200) {
@@ -23,7 +23,7 @@ export function defineTests(ctx) {
         }
 
         if (!Array.isArray(res.json)) {
-          throw new Error(`expected JSON array from /api/rfm/scatter-plot, got ${typeof res.json}`);
+          throw new Error(`expected JSON array from /api/rfm?view=scatter, got ${typeof res.json}`);
         }
 
         // If there is at least one entry, assert the expected shape.
@@ -44,7 +44,7 @@ export function defineTests(ctx) {
         // Omit startDate to trigger backend validation -> 400 via frontend proxy
         const res = await ctx.http(
           "GET",
-          `${ctx.frontendBaseUrl}/api/rfm/scatter-plot?endDate=2021-01-01T00:00:00`
+          `${ctx.frontendBaseUrl}/api/rfm?view=scatter&endDate=2021-01-01T00:00:00`
         );
 
         if (res.status !== 400) {
@@ -61,7 +61,7 @@ export function defineTests(ctx) {
 
         const res = await ctx.http(
           "GET",
-          `${ctx.frontendBaseUrl}/api/rfm/scatter-plot?startDate=${start}&endDate=${end}&country=${country}`
+          `${ctx.frontendBaseUrl}/api/rfm?view=scatter&startDate=${start}&endDate=${end}&country=${country}`
         );
 
         if (res.status !== 200) {
@@ -69,7 +69,7 @@ export function defineTests(ctx) {
         }
 
         if (!Array.isArray(res.json)) {
-          throw new Error(`expected JSON array from /api/rfm/scatter-plot with country, got ${typeof res.json}`);
+          throw new Error(`expected JSON array from /api/rfm?view=scatter with country, got ${typeof res.json}`);
         }
       }
     }

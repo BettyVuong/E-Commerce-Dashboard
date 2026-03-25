@@ -24,7 +24,14 @@ public class RfmController {
         this.rfmService = rfmService;
     }
 
-    @GetMapping("/scatter-plot")
+    /**
+     * Returns the scatter-view representation for the RFM resource collection.
+     *
+     * <p>REST note:
+     * - We keep a single resource path (/api/rfm) and select the representation
+     *   via a query discriminator (view=scatter) instead of a presentation path.
+     */
+    @GetMapping(params = "view=scatter")
     public List<RfmMetric> getScatterPlotData(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
@@ -33,7 +40,14 @@ public class RfmController {
         return rfmService.getRfmData(startDate, endDate, country);
     }
 
-    @GetMapping("/histograms")
+    /**
+     * Returns the histogram-view representation for the RFM resource collection.
+     *
+     * <p>REST note:
+     * - We keep a single resource path (/api/rfm) and select the representation
+     *   via a query discriminator (view=histogram) instead of /histograms.
+     */
+    @GetMapping(params = "view=histogram")
     public HistogramResponse getHistogramData(
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
