@@ -165,11 +165,13 @@ export const RFMScatterPlot: React.FC<RFMScatterPlotProps> = ({
         setError(null);
         try {
             const params = new URLSearchParams({
+                // RESTful representation selector for /api/rfm.
+                view: 'scatter',
                 startDate: toISOLocal(startDate, false),
                 endDate: toISOLocal(endDate, true),
             });
             if (country) params.set('country', country);
-            const res = await fetch(`/api/rfm/scatter-plot?${params.toString()}`);
+            const res = await fetch(`/api/rfm?${params.toString()}`);
             if (!res.ok) throw new Error(`Server error ${res.status}: ${res.statusText}`);
             const json: RfmMetric[] = await res.json();
             setData(json);

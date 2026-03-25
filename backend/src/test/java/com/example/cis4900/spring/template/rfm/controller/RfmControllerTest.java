@@ -35,7 +35,8 @@ class RfmControllerTest {
     void testGetScatterPlotData_ReturnsOk() throws Exception {
         when(rfmService.getRfmData(any(), any(), nullable(String.class))).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/rfm/scatter-plot")
+        mockMvc.perform(get("/api/rfm")
+            .param("view", "scatter")
                 .param("startDate", "2020-01-01T00:00:00")
                 .param("endDate", "2021-01-01T00:00:00")
                 .param("country", "United Kingdom"))
@@ -46,7 +47,8 @@ class RfmControllerTest {
     void testGetScatterPlotData_WithoutCountryPassesNull() throws Exception {
         when(rfmService.getRfmData(any(), any(), isNull())).thenReturn(List.of());
 
-        mockMvc.perform(get("/api/rfm/scatter-plot")
+        mockMvc.perform(get("/api/rfm")
+            .param("view", "scatter")
                 .param("startDate", "2020-01-01T00:00:00")
                 .param("endDate", "2021-01-01T00:00:00"))
                 .andExpect(status().isOk());
@@ -56,7 +58,8 @@ class RfmControllerTest {
 
     @Test
     void testGetScatterPlotData_MissingParams_ReturnsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/rfm/scatter-plot")
+        mockMvc.perform(get("/api/rfm")
+            .param("view", "scatter")
                 .param("endDate", "2021-01-01T00:00:00"))
                 .andExpect(status().isBadRequest());
     }
@@ -82,7 +85,8 @@ class RfmControllerTest {
 
         when(rfmService.getHistogramData(any(), any(), nullable(String.class))).thenReturn(response);
 
-        mockMvc.perform(get("/api/rfm/histograms")
+        mockMvc.perform(get("/api/rfm")
+            .param("view", "histogram")
                 .param("startDate", "2020-01-01T00:00:00")
                 .param("endDate", "2021-01-01T00:00:00"))
                 .andExpect(status().isOk())
@@ -96,14 +100,16 @@ class RfmControllerTest {
 
     @Test
     void testGetHistogramData_MissingParams_ReturnsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/rfm/histograms")
+        mockMvc.perform(get("/api/rfm")
+            .param("view", "histogram")
                 .param("endDate", "2021-01-01T00:00:00"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void testGetHistogramData_InvalidDate_ReturnsBadRequest() throws Exception {
-        mockMvc.perform(get("/api/rfm/histograms")
+        mockMvc.perform(get("/api/rfm")
+            .param("view", "histogram")
                 .param("startDate", "not-a-date")
                 .param("endDate", "2021-01-01T00:00:00"))
                 .andExpect(status().isBadRequest());

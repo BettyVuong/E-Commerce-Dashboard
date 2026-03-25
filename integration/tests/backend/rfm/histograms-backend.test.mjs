@@ -1,8 +1,8 @@
 /*
   histograms-backend.test.mjs
 
-  Backend integration tests for the RFM histograms API.
-  These tests exercise `/api/rfm/histograms` directly and reuse the
+  Backend integration tests for the RFM histogram representation API.
+  These tests exercise `/api/rfm?view=histogram` directly and reuse the
   fixture + cleaning helpers to ensure the DB is populated for queries.
 */
 
@@ -20,14 +20,14 @@ export function defineTests(ctx) {
 
         const start = encodeURIComponent("2010-01-01T00:00:00");
         const end = encodeURIComponent("2010-12-31T23:59:59");
-        const res = await ctx.http("GET", `${ctx.backendBaseUrl}/api/rfm/histograms?startDate=${start}&endDate=${end}`);
+        const res = await ctx.http("GET", `${ctx.backendBaseUrl}/api/rfm?view=histogram&startDate=${start}&endDate=${end}`);
 
         if (res.status !== 200) {
           throw new Error(`expected 200 for valid histograms backend query, got ${res.status}: ${res.text}`);
         }
 
         const body = res.json;
-        if (!body || typeof body !== 'object') throw new Error('expected JSON object from backend /api/rfm/histograms');
+        if (!body || typeof body !== 'object') throw new Error('expected JSON object from backend /api/rfm?view=histogram');
 
         for (const metric of ['basketSize','orderValue']) {
           if (!(metric in body)) throw new Error(`missing metric '${metric}' in backend histogram response`);
@@ -45,7 +45,7 @@ export function defineTests(ctx) {
     {
       name: "backend rfm histograms: missing required params returns 400",
       run: async () => {
-        const res = await ctx.http("GET", `${ctx.backendBaseUrl}/api/rfm/histograms?endDate=2010-12-31T23:59:59`);
+        const res = await ctx.http("GET", `${ctx.backendBaseUrl}/api/rfm?view=histogram&endDate=2010-12-31T23:59:59`);
         if (res.status !== 400) {
           throw new Error(`expected 400 for missing params on backend API, got ${res.status}`);
         }
@@ -62,14 +62,14 @@ export function defineTests(ctx) {
         const start = encodeURIComponent("2010-01-01T00:00:00");
         const end = encodeURIComponent("2010-12-31T23:59:59");
         const country = encodeURIComponent("United Kingdom");
-        const res = await ctx.http("GET", `${ctx.backendBaseUrl}/api/rfm/histograms?startDate=${start}&endDate=${end}&country=${country}`);
+        const res = await ctx.http("GET", `${ctx.backendBaseUrl}/api/rfm?view=histogram&startDate=${start}&endDate=${end}&country=${country}`);
 
         if (res.status !== 200) {
           throw new Error(`expected 200 for histograms backend query with country, got ${res.status}: ${res.text}`);
         }
 
         if (!res.json || typeof res.json !== 'object') {
-          throw new Error(`expected JSON object from backend /api/rfm/histograms with country, got ${typeof res.json}`);
+          throw new Error(`expected JSON object from backend /api/rfm?view=histogram with country, got ${typeof res.json}`);
         }
       }
     },
@@ -79,14 +79,14 @@ export function defineTests(ctx) {
         // Query a far-future date range that should have no data
         const start = encodeURIComponent("2100-01-01T00:00:00");
         const end = encodeURIComponent("2100-12-31T23:59:59");
-        const res = await ctx.http("GET", `${ctx.backendBaseUrl}/api/rfm/histograms?startDate=${start}&endDate=${end}`);
+        const res = await ctx.http("GET", `${ctx.backendBaseUrl}/api/rfm?view=histogram&startDate=${start}&endDate=${end}`);
 
         if (res.status !== 200) {
           throw new Error(`expected 200 for empty-backend histograms query, got ${res.status}: ${res.text}`);
         }
 
         const body = res.json;
-        if (!body || typeof body !== 'object') throw new Error('expected JSON object from backend /api/rfm/histograms (empty)');
+        if (!body || typeof body !== 'object') throw new Error('expected JSON object from backend /api/rfm?view=histogram (empty)');
         // invoiceCount should be zero for empty ranges
         const invoiceCount = body.basketSize && body.basketSize.summary && body.basketSize.summary.invoiceCount;
         if (typeof invoiceCount !== 'number') throw new Error('expected numeric invoiceCount in empty histogram response');
