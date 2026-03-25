@@ -68,7 +68,7 @@ public class OnlineRetailCleaningDataController {
     /**
      * Exports cleaned data as an XLSX representation of the cleaned collection.
      *
-     * REST note:
+        * <p>REST note:
      * - This intentionally reuses the cleaned resource path (/cleaned) and uses
      *   a representation query parameter (format=xlsx) instead of an action path
      *   like /cleaned/export.
