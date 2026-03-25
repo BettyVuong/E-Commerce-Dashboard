@@ -89,7 +89,7 @@ class OnlineRetailCleaningDataControllerTest {
             exportService
         );
 
-        ResponseEntity<StreamingResponseBody> response = controller.exportCleanedData();
+        ResponseEntity<StreamingResponseBody> response = controller.exportCleanedDataAsXlsx();
 
         assertEquals(404, response.getStatusCodeValue());
         assertEquals(null, response.getBody());
@@ -119,7 +119,7 @@ class OnlineRetailCleaningDataControllerTest {
             exportService
         );
 
-        ResponseEntity<StreamingResponseBody> response = controller.exportCleanedData();
+        ResponseEntity<StreamingResponseBody> response = controller.exportCleanedDataAsXlsx();
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(
@@ -161,7 +161,7 @@ class OnlineRetailCleaningDataControllerTest {
             exportService
         );
 
-        ResponseEntity<StreamingResponseBody> response = controller.exportCleanedData();
+        ResponseEntity<StreamingResponseBody> response = controller.exportCleanedDataAsXlsx();
 
         IllegalStateException exception = assertThrows(
             IllegalStateException.class,

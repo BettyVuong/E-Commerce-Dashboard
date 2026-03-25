@@ -43,7 +43,7 @@ test('Upload and export data flow', async () => {
         } ,{timeout: 5000});
 
     fireEvent.click(screen.getByText(/Download Cleaned Data/i));
-    await waitFor(() => {expect(mockFetch).toHaveBeenCalledWith("/api/cleaning-data/cleaned/export");
+    await waitFor(() => {expect(mockFetch).toHaveBeenCalledWith("/api/cleaning-data/cleaned?format=xlsx");
     } ,{timeout: 5000});
 })
   

@@ -26,7 +26,8 @@ export function defineTests(ctx) {
       run: async () => {
         await ensureCleanedDataExists(ctx, ctx.frontendBaseUrl);
 
-        const res = await fetch(`${ctx.frontendBaseUrl}/api/cleaning-data/cleaned/export`, {
+        // Request XLSX representation via frontend proxy using RESTful cleaned route.
+        const res = await fetch(`${ctx.frontendBaseUrl}/api/cleaning-data/cleaned?format=xlsx`, {
           method: "GET"
         });
 
