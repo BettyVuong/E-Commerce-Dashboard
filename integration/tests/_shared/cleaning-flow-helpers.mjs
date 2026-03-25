@@ -36,7 +36,8 @@ export async function uploadFixture(ctx, baseUrl) {
   });
   form.set("file", fixtureBlob, "retail-smoke.csv");
 
-  const res = await ctx.http("POST", `${baseUrl}/api/ingest/upload`, { body: form });
+  // Post to the RESTful ingest collection route to create an ingest resource.
+  const res = await ctx.http("POST", `${baseUrl}/api/ingests`, { body: form });
   if (res.status !== 200) {
     throw new Error(`upload failed with HTTP ${res.status}: ${res.text}`);
   }

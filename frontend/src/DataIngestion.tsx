@@ -263,7 +263,8 @@ export const DataIngestion: React.FC = () => {
         formData.append('file', file);
 
         try {
-            const uploadResponse = await fetch('/api/ingest/upload', {
+            // RESTful ingest create route: posting multipart form data creates a new ingest resource.
+            const uploadResponse = await fetch('/api/ingests', {
                 method: 'POST',
                 body: formData
             });

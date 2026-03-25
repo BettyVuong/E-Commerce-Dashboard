@@ -31,7 +31,8 @@ public class IngestDataControllerTest {
         MockMultipartFile file = new MockMultipartFile("file", "test.csv", "text/csv", "Invoice,StockCode,Description,Quantity,InvoiceDate,UnitPrice,CustomerID,Country\n536374,82345,WHITE HANGING HEART T-LIGHT HOLDER,6,12/1/2010 8:26,2.55,17850.0,United Kingdom".getBytes());
         
         doNothing().when(ingestDataService).processFile(any(org.springframework.web.multipart.MultipartFile.class));
-        mockMvc.perform(multipart("/api/ingest/upload").file(file))
+        // Use the RESTful collection route for ingest creation.
+        mockMvc.perform(multipart("/api/ingests").file(file))
                 .andExpect(status().isOk());
         verify(ingestDataService, times(1)).processFile(any(org.springframework.web.multipart.MultipartFile.class));
     }
@@ -45,7 +46,8 @@ public class IngestDataControllerTest {
             .when(ingestDataService)
             .processFile(any(org.springframework.web.multipart.MultipartFile.class));
 
-        mockMvc.perform(multipart("/api/ingest/upload").file(file))
+        // Validation errors should still flow through the new RESTful route.
+        mockMvc.perform(multipart("/api/ingests").file(file))
             .andExpect(status().isBadRequest())
             .andExpect(content().string("Excel file is too large or malformed. Please upload a smaller valid .xlsx file."));
 
