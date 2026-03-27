@@ -20,7 +20,7 @@ public class DirtyDataMapper {
 
     // Helper method to safely get a value from the array, returning an empty string if the index is out of bounds
     public String getSafeValue(String[] values, int index) {
-        if (values.length <= index|| values [index] == null || values[index].isEmpty()) {
+        if (values.length <= index || values [index] == null || values[index].isEmpty()) {
             return "";
         } else {
             return values[index];
