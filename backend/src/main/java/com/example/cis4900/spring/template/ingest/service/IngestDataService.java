@@ -48,10 +48,12 @@ public class IngestDataService {
     private final DirtyDataRepository dirtyDataRepository;
     private final EntityManager entityManager;
     private final DataFormatter dataFormatter = new DataFormatter();
+    private final DirtyDataMapper dirtyDataMapper;
 
-    public IngestDataService(DirtyDataRepository dirtyDataRepository, @Nullable EntityManager entityManager) {
+    public IngestDataService(DirtyDataRepository dirtyDataRepository, @Nullable EntityManager entityManager, DirtyDataMapper dirtyDataMapper) {
         this.dirtyDataRepository = dirtyDataRepository;
         this.entityManager = entityManager;
+        this.dirtyDataMapper = dirtyDataMapper;
     }
 
     @Transactional
@@ -93,16 +95,7 @@ public class IngestDataService {
                     continue;
                 }
                 // Assuming CSV columns: id, name, value, timestamp
-                DirtyData dirtyData = new DirtyData(
-                    getValue(line, 0), // invoice
-                    getValue(line, 1), // stockCode
-                    getValue(line, 2), // description
-                    getValue(line, 3), // quantity
-                    getValue(line, 4), // invoiceDate
-                    getValue(line, 5), // unitPrice
-                    getValue(line, 6), // customerID
-                    getValue(line, 7)  // country
-                );
+                DirtyData dirtyData = dirtyDataMapper.map(line);
                 batch.add(dirtyData);
                 processedRows++;
 
@@ -121,15 +114,6 @@ public class IngestDataService {
         //if parse is empty
         if (processedRows == 0) {
             throw new RuntimeException("CSV file is empty or only contains headers");
-        }
-    }
-
-    //helper method to get all data from the csv file and handle missing values by returning empty string
-    private String getValue(String [] line, int index) {
-        if (line.length > index && line[index] != null && !line[index].isEmpty()) {
-            return line[index];
-        } else {
-            return ""; //default to empty for null value
         }
     }
 
@@ -236,16 +220,7 @@ public class IngestDataService {
                 return;
             }
 
-            DirtyData dirtyData = new DirtyData(
-                getValue(currentRowValues, 0),
-                getValue(currentRowValues, 1),
-                getValue(currentRowValues, 2),
-                getValue(currentRowValues, 3),
-                getValue(currentRowValues, 4),
-                getValue(currentRowValues, 5),
-                getValue(currentRowValues, 6),
-                getValue(currentRowValues, 7)
-            );
+            DirtyData dirtyData = dirtyDataMapper.map(currentRowValues);
 
             batch.add(dirtyData);
             processedRows++;

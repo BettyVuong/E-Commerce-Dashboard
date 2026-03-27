@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import com.example.cis4900.spring.template.ingest.model.DirtyData;
 import com.example.cis4900.spring.template.ingest.repository.DirtyDataRepository;
 import com.example.cis4900.spring.template.ingest.service.IngestDataService;
+import com.example.cis4900.spring.template.ingest.service.DirtyDataMapper;
 
 class IngestDataServiceTest {
     private IngestDataService ingestDataService;
@@ -34,8 +35,9 @@ class IngestDataServiceTest {
         //mock repo
         dirtyDataRepository = mock(DirtyDataRepository.class);
         entityManager = mock(EntityManager.class);
+        DirtyDataMapper mapDirtyData = new DirtyDataMapper();
         //inject mock repo into service
-        ingestDataService = new IngestDataService(dirtyDataRepository, entityManager);
+        ingestDataService = new IngestDataService(dirtyDataRepository, entityManager, mapDirtyData);
     }
 
     //test that a valid CSV file is processed correctly and saved to the repository
