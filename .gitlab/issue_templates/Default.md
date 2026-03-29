@@ -14,6 +14,12 @@ Why do we need this? Links, screenshots, or references.
 - [ ] ...
 - [ ] ...
 
+### [Only required for FE/BE Dev] Testing Implementation
+*If this issue involves code changes, the following must be completed during the development phase:*
+- [ ] **Unit/Integration Testing:** Logic has been verified with automated tests. 
+- [ ] **Edge Case Coverage:** Tests confirm behaviour for empty, null, or extreme data values.
+
+
 ## Definition of Done
 The following criteria must be met before this is considered complete:
 - [ ] **Feature Functionality:** Interface is accessible with clear visual feedback.
