@@ -44,6 +44,25 @@ jest.mock('../components/RFMHistogram', () => ({
     ),
 }));
 
+// mock RS Pie chart
+jest.mock('../components/RevenueSharePC', () => ({
+    RevenueSharePC: ({
+        initialStartDate,
+        initialEndDate,
+        initialCountry,
+    }: {
+        initialStartDate?: string;
+        initialEndDate?: string;
+        initialCountry?: string;
+    }) => (
+        <div data-testid="revenue-share-pc">
+            <span data-testid="rs-start">{initialStartDate}</span>
+            <span data-testid="rs-end">{initialEndDate}</span>
+            <span data-testid="rs-country">{initialCountry}</span>
+        </div>
+    ),
+}));
+
 describe('DataIngestion Component Unit Tests', () => {
 
     beforeEach(() => {
@@ -523,4 +542,98 @@ describe('DataIngestion Component Unit Tests', () => {
         expect(screen.getByTestId('rfm-histogram')).toBeInTheDocument();
         expect(screen.queryByTestId('rfm-scatter-plot')).not.toBeInTheDocument();
     });
+
+    // REVENUE SHARE PIE CHART TAB
+ 
+    test('renders the RS Pie Chart tab button in results', async () => {
+        await goToResults({ entries: [], totalEntries: 0, status: 'COMPLETED' });
+        expect(screen.getByRole('button', { name: /RS Pie Chart/i })).toBeInTheDocument();
+    });
+ 
+    test('clicking RS Pie Chart tab renders the RevenueSharePC component', async () => {
+        await goToResults({ entries: [], totalEntries: 0, status: 'COMPLETED' });
+        fireEvent.click(screen.getByRole('button', { name: /RS Pie Chart/i }));
+        expect(screen.getByTestId('revenue-share-pc')).toBeInTheDocument();
+    });
+ 
+    test('passes derived date range from clean data to RevenueSharePC', async () => {
+        const mockData = {
+            entries: [
+                { invoice: 'INV001', invoiceDate: '2020-03-15T00:00:00', country: 'United Kingdom' },
+                { invoice: 'INV002', invoiceDate: '2021-11-20T00:00:00', country: 'United Kingdom' },
+            ],
+            totalEntries: 2,
+            status: 'COMPLETED',
+        };
+        await goToResults(mockData);
+        fireEvent.click(screen.getByRole('button', { name: /RS Pie Chart/i }));
+        await waitFor(() => {
+            expect(screen.getByTestId('rs-start')).toHaveTextContent('2020-03-15');
+            expect(screen.getByTestId('rs-end')).toHaveTextContent('2021-11-20');
+        });
+    });
+ 
+    test('passes most common country to RevenueSharePC', async () => {
+        const mockData = {
+            entries: [
+                { invoice: 'INV001', invoiceDate: '2020-01-01T00:00:00', country: 'Germany' },
+                { invoice: 'INV002', invoiceDate: '2020-02-01T00:00:00', country: 'Germany' },
+                { invoice: 'INV003', invoiceDate: '2020-03-01T00:00:00', country: 'France' },
+            ],
+            totalEntries: 3,
+            status: 'COMPLETED',
+        };
+        await goToResults(mockData);
+        fireEvent.click(screen.getByRole('button', { name: /RS Pie Chart/i }));
+        await waitFor(() => {
+            expect(screen.getByTestId('rs-country')).toHaveTextContent('Germany');
+        });
+    });
+ 
+    test('switching away from RS Pie Chart tab and back re-renders the component', async () => {
+        await goToResults({ entries: [], totalEntries: 0, status: 'COMPLETED' });
+        fireEvent.click(screen.getByRole('button', { name: /RS Pie Chart/i }));
+        expect(screen.getByTestId('revenue-share-pc')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /Invalid Items/i }));
+        expect(screen.queryByTestId('revenue-share-pc')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /RS Pie Chart/i }));
+        expect(screen.getByTestId('revenue-share-pc')).toBeInTheDocument();
+    });
+ 
+    // ── deriveDateRange edge cases ──
+ 
+    test('handles clean data with mixed valid and invalid date formats', async () => {
+        const mockData = {
+            entries: [
+                { invoice: 'INV001', invoiceDate: '2021-06-01T00:00:00', country: 'UK' },
+                { invoice: 'INV002', invoiceDate: 'not-a-date',           country: 'UK' },
+                { invoice: 'INV003', invoiceDate: null,                   country: 'UK' },
+            ],
+            totalEntries: 3,
+            status: 'COMPLETED',
+        };
+        await goToResults(mockData);
+        fireEvent.click(screen.getByRole('button', { name: /RFM Scatter Plot/i }));
+        await waitFor(() => {
+            expect(screen.getByTestId('rfm-start')).toHaveTextContent('2021-06-01');
+            expect(screen.getByTestId('rfm-end')).toHaveTextContent('2021-06-01');
+        });
+    });
+ 
+    test('handles clean data where no entries have a country', async () => {
+        const mockData = {
+            entries: [
+                { invoice: 'INV001', invoiceDate: '2021-01-01T00:00:00', country: null },
+                { invoice: 'INV002', invoiceDate: '2021-06-01T00:00:00', country: null },
+            ],
+            totalEntries: 2,
+            status: 'COMPLETED',
+        };
+        await goToResults(mockData);
+        fireEvent.click(screen.getByRole('button', { name: /RFM Scatter Plot/i }));
+        await waitFor(() => {
+            expect(screen.getByTestId('rfm-country')).toHaveTextContent('');
+        });
+    });
+
 });
