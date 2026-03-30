@@ -145,70 +145,44 @@ export const DataIngestion: React.FC = () => {
         return data.totalEntries ?? 0;
     };
 
-    const fetchResults = async (
-        currentPage = 0,
-        mode: ResultsTab | 'all' = 'all'
-    ): Promise<{ clean: number; invalid: number; dirty: number }> => {
+    /**
+     * fetchResults (Refactored)
+     * Orchestrates data fetching across all result tabs (Clean, Invalid, Dirty, RFM).
+     * Removed long method (bloater) by consolidating redundant return objects
+     * Strategy Pattern: Uses a default totals object as a base state 
+     * and only updates the specific delta needed for the active view
+     */
+    const fetchResults = async (currentPage = 0, mode: ResultsTab | 'all' = 'all') => {
         try {
-            // On page changes, only fetch the active tab to reduce UI lag.
-            if (mode === 'clean') {
-                return {
-                    clean: await fetchCleanPage(currentPage),
-                    invalid: invalidTotal,
-                    dirty: dirtyTotal
-                };
+            // start with snapshot of current state
+            const totals = { clean: cleanTotal, invalid: invalidTotal, dirty: dirtyTotal };
+            // full refresh strategy: triggered on inital load or after new file upload
+            if (mode === 'all') {
+                // uses promise.all to fetch all 3 categories in parallel for speed
+                const [c, i, d] = await Promise.all([fetchCleanPage(0), fetchInvalidPage(0), fetchDirtyPage(0)]);
+                return { clean: c, invalid: i, dirty: d };
             }
-
-            if (mode === 'invalid') {
-                return {
-                    clean: cleanTotal,
-                    invalid: await fetchInvalidPage(currentPage),
-                    dirty: dirtyTotal
-                };
+            // getting rid of duplicate code (5 seperate return blocks)
+            //  using a switch to update only the piece of data user is currently looking at 
+            switch (mode) {
+                case 'clean':   
+                    totals.clean = await fetchCleanPage(currentPage); 
+                    break;
+                case 'invalid': 
+                    totals.invalid = await fetchInvalidPage(currentPage); 
+                    break;
+                case 'dirty':   
+                    totals.dirty = await fetchDirtyPage(currentPage); 
+                    break;
+                case 'rfm-scatter-results':
+                case 'rfm-histogram-results':
+                    // dependency check: user jumps straight to graph, fetch page 0 of cleaned data ro ensure charts have input 
+                    if (cleanData.length === 0) totals.clean = await fetchCleanPage(0);
+                    break;
             }
-
-            if (mode === 'dirty') {
-                return {
-                    clean: cleanTotal,
-                    invalid: invalidTotal,
-                    dirty: await fetchDirtyPage(currentPage)
-                };
-            }
-
-            // for the rfm scatter plot page
-            if (mode === 'rfm-scatter-results') {
-                // RFMScatterPlot handles its own fetch
-                // onlyn need to ensure cleanData is loaded/updated
-                const cleanCount = cleanData.length === 0 ? await fetchCleanPage(0) : cleanTotal;
-                return { clean: cleanCount, invalid: invalidTotal, dirty: dirtyTotal };
-            }
-
-            // for the rfm histogram page
-            if (mode === 'rfm-histogram-results') {
-                // RFMHistogram handles its own fetch
-                // onlyn need to ensure cleanData is loaded/updated
-                const cleanCount = cleanData.length === 0 ? await fetchCleanPage(0) : cleanTotal;
-                return { clean: cleanCount, invalid: invalidTotal, dirty: dirtyTotal };
-            }
-
-            // for the revenue share pie chart
-            if (mode == 'rs-pc-results') {
-                // it handles its own fetch
-                // only need to ensure clean data is loaded
-                const cleanCount = cleanData.length === 0 ? await fetchCleanPage(0) : cleanTotal;
-                return { clean: cleanCount, invalid: invalidTotal, dirty: dirtyTotal };
-            }
-
-            // Full refresh is used only after job completion or "View Existing Results".
-            const [cleanCount, invalidCount, dirtyCount] = await Promise.all([
-                fetchCleanPage(currentPage),
-                fetchInvalidPage(currentPage),
-                fetchDirtyPage(currentPage)
-            ]);
-
-            return { clean: cleanCount, invalid: invalidCount, dirty: dirtyCount };
+            return totals;
         } catch (e) {
-            console.error("Failed to fetch results", e);
+            console.error("Fetch failed", e);
             throw e;
         }
     };
