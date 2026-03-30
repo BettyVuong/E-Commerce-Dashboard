@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 // Components
 import { RFMScatterPlot } from './components/RFMScatterPlot';
 import { RFMHistogram } from './components/RFMHistogram';
+import { RevenueSharePC } from './components/RevenueSharePC';
 
 type PrimitiveCell = string | number | boolean | null | undefined;
 
@@ -35,7 +36,7 @@ interface InvalidRow {
     validationErrors?: string;
 }
 
-type ResultsTab = 'clean' | 'invalid' | 'rfm-scatter-results' | 'rfm-histogram-results' | 'dirty';
+type ResultsTab = 'clean' | 'invalid' | 'rfm-scatter-results' | 'rfm-histogram-results' | 'rs-pc-results' | 'dirty';
 
 const parseRawValues = (rawValues?: string): Record<string, PrimitiveCell> => {
     if (!rawValues) {
@@ -65,7 +66,7 @@ const deriveDateRange = (rows: CleanRow[]): { startDate: string; endDate: string
 export const DataIngestion: React.FC = () => {
     const [step, setStep] = useState<'upload' | 'processing' | 'results'>('upload');
     const [processingMessage, setProcessingMessage] = useState('Uploading and cleaning data...');
-    const [activeTab, setActiveTab] = useState<'clean' | 'invalid' | 'rfm-scatter-results' | 'rfm-histogram-results' | 'dirty'>('clean');
+    const [activeTab, setActiveTab] = useState<'clean' | 'invalid' | 'rfm-scatter-results' | 'rfm-histogram-results' | 'rs-pc-results' | 'dirty'>('clean');
 
     // Pagination state
     const [page, setPage] = useState(0);
@@ -81,14 +82,14 @@ export const DataIngestion: React.FC = () => {
     const [dirtyData, setDirtyData] = useState<DirtyRow[]>([]);
     const [dirtyTotal, setDirtyTotal] = useState(0);
     const [isDownloading, setIsDownloading] = useState(false);
-    
+
     // Job status state for loading bar
     const [jobProgress, setJobProgress] = useState(0);
     const [jobProcessedCount, setJobProcessedCount] = useState(0);
     const [jobTotalCount, setJobTotalCount] = useState(0);
     const [jobETAMs_remain, setjobETAMs_remain] = useState<number | null>(null);
     const [isViewingExisting, setIsViewingExisting] = useState(false);
-   
+
     // RFM filter state - derived from clean data for now, but could be user inputs in the future
     const [rfmStartDate, setRfmStartDate] = useState('');
     const [rfmEndDate, setRfmEndDate] = useState('');
@@ -240,7 +241,7 @@ export const DataIngestion: React.FC = () => {
         setJobProcessedCount(0);
         setJobTotalCount(0);
         setjobETAMs_remain(null);
-        
+
         const formData = new FormData();
         formData.append('file', file);
 
@@ -298,7 +299,7 @@ export const DataIngestion: React.FC = () => {
                         const statusData = await statusRes.json();
                         const status = String(statusData.status ?? 'UNKNOWN');
                         setProcessingMessage(`Cleaning status: ${status}`);
-                        
+
                         //cleaning bar update
                         setJobProgress(typeof statusData.progress === 'number' ? statusData.progress : 0);
                         setJobProcessedCount(typeof statusData.processedCount === 'number' ? statusData.processedCount : 0);
@@ -369,8 +370,8 @@ export const DataIngestion: React.FC = () => {
     };
 
     const rowCountText = jobTotalCount > 0
-    ? `${jobProcessedCount.toLocaleString()} / ${jobTotalCount.toLocaleString()} rows`
-    : 'Starting…';
+        ? `${jobProcessedCount.toLocaleString()} / ${jobTotalCount.toLocaleString()} rows`
+        : 'Starting…';
 
     const percentageText = jobTotalCount > 0
         ? `${Math.round(jobProgress * 100)}%`
@@ -379,7 +380,7 @@ export const DataIngestion: React.FC = () => {
     const etaText = jobETAMs_remain !== null && jobETAMs_remain > 0
         ? `~${Math.ceil(jobETAMs_remain / 1000)}s remaining`
         : jobProgress === 1 ? 'Done' : '';
-        
+
     return (
         <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
 
@@ -407,10 +408,14 @@ export const DataIngestion: React.FC = () => {
                     {/* Job progress bar */}
                     {!isViewingExisting && (
                         <>
-                            <div style={{ border: '1px solid #bbb', borderRadius: '11px', width: '100%', height: '22px', 
-                                marginBottom: '10px', backgroundColor: '#e0e0e0', overflow: 'hidden'}}>
-                                <div style={{width: `${Math.round(jobProgress * 100)}%`, height: '100%', backgroundColor: '#4caf50', 
-                                    borderRadius: '11px', transition: 'width 0.5s ease', minWidth: jobProgress > 0 ? '22px' : '0'}} />
+                            <div style={{
+                                border: '1px solid #bbb', borderRadius: '11px', width: '100%', height: '22px',
+                                marginBottom: '10px', backgroundColor: '#e0e0e0', overflow: 'hidden'
+                            }}>
+                                <div style={{
+                                    width: `${Math.round(jobProgress * 100)}%`, height: '100%', backgroundColor: '#4caf50',
+                                    borderRadius: '11px', transition: 'width 0.5s ease', minWidth: jobProgress > 0 ? '22px' : '0'
+                                }} />
                             </div>
 
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', color: '#444' }}>
@@ -490,6 +495,21 @@ export const DataIngestion: React.FC = () => {
                         >
                             RFM Histograms
 
+                        </button>
+                        <button
+                            onClick={() => handleTabChange('rs-pc-results')}
+                            style={{
+                                fontWeight: activeTab === 'rs-pc-results' ? 'bold' : 'normal',
+                                backgroundColor: activeTab === 'rs-pc-results' ? '#e0e0e0' : '#e0e0e0',
+                                border: '1px solid #777',
+                                borderBottom: activeTab === 'rs-pc-results' ? 'none' : '1px solid #777',
+                                padding: '5px 10px',
+                                position: 'relative',
+                                top: '1px',
+                                zIndex: activeTab === 'rs-pc-results' ? 1 : 0
+                            }}
+                        >
+                            RS Pie Chart
                         </button>
                         <button
                             onClick={() => handleTabChange('dirty')}
@@ -631,6 +651,24 @@ export const DataIngestion: React.FC = () => {
                                   * type them manually.
                                   */}
                                 <RFMHistogram
+                                    initialStartDate={rfmStartDate}
+                                    initialEndDate={rfmEndDate}
+                                    initialCountry={rfmCountry}
+                                />
+                            </div>
+                        )}
+
+                        {/* Revenue Share Pie Chart */}
+                        {activeTab === 'rs-pc-results' && (
+                            <div style={{ padding: '10px' }}>
+                                {/*
+                                  * The Revenue PC component is fully self-contained:
+                                  * it owns its own filter state and API calls.
+                                  * We pass date-range hints derived from cleanData as
+                                  * convenient pre-fills so the analyst doesn't have to
+                                  * type them manually.
+                                  */}
+                                <RevenueSharePC
                                     initialStartDate={rfmStartDate}
                                     initialEndDate={rfmEndDate}
                                     initialCountry={rfmCountry}
