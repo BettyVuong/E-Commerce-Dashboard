@@ -1,26 +1,18 @@
 /*
   ui-pie-api.test.mjs
 
-  Browser-level integration test for pie endpoint consumption from the
-  frontend runtime context. This validates that the frontend can request
-  pie data through its API path without browser/runtime errors.
+  Playwright UI tests for the Revenue Share pie-chart flow.
+  These tests validate that the pie chart renders from API data and that
+  applying a different date range updates the UI state correctly.
 */
 
 import { chromium } from "playwright";
 import { uploadFixture, createCleaningJob, waitForCompletedCleaningJob } from "../../_shared/cleaning-flow-helpers.mjs";
 
-function toNumber(value) {
-  const n = Number(value);
-  if (Number.isNaN(n)) {
-    throw new Error(`expected numeric value, got '${value}'`);
-  }
-  return n;
-}
-
 export function defineTests(ctx) {
   return [
     {
-      name: "frontend pie browser path: pie API payload is consumable without runtime errors",
+      name: "frontend pie UI: applying valid dates renders pie chart and legend",
       run: async () => {
         await uploadFixture(ctx, ctx.frontendBaseUrl);
         const jobId = await createCleaningJob(ctx, ctx.frontendBaseUrl);
@@ -38,53 +30,71 @@ export function defineTests(ctx) {
           await page.goto(ctx.frontendBaseUrl, { waitUntil: "networkidle" });
           await page.waitForSelector("text=View Existing Results", { timeout: 10000 });
           await page.click("text=View Existing Results");
+          await page.waitForSelector("text=Results", { timeout: 20000 });
 
-          const piePayload = await page.evaluate(async () => {
-            const start = encodeURIComponent("2010-01-01T00:00:00");
-            const end = encodeURIComponent("2010-12-31T23:59:59");
-            const response = await fetch(`/api/rfm?view=pie&startDate=${start}&endDate=${end}`);
-            const text = await response.text();
-            let json = null;
-            try {
-              json = text ? JSON.parse(text) : null;
-            } catch {
-              json = null;
-            }
-            return {
-              status: response.status,
-              text,
-              json
-            };
-          });
+          await page.waitForSelector("text=/RS Pie Chart/i", { timeout: 20000 });
+          await page.click("text=/RS Pie Chart/i");
 
-          if (piePayload.status !== 200) {
-            throw new Error(`expected 200 from browser pie API call, got ${piePayload.status}: ${piePayload.text}`);
+          await page.waitForSelector("#rs-start-date", { timeout: 10000 });
+          await page.fill("#rs-start-date", "2010-01-01");
+          await page.fill("#rs-end-date", "2010-12-31");
+          await page.click(".rfm-apply-btn");
+
+          await page.waitForSelector(".rs-chart-layout", { timeout: 15000 });
+          await page.waitForSelector(".rs-legend-row", { timeout: 15000 });
+          await page.waitForSelector(".recharts-surface", { timeout: 15000 });
+
+          const legendRows = await page.$$(".rs-legend-row");
+          if (legendRows.length < 1) {
+            throw new Error(`expected at least one pie legend row, found ${legendRows.length}`);
           }
 
-          if (!piePayload.json || typeof piePayload.json !== "object") {
-            throw new Error("expected pie JSON object from browser API call");
-          }
-
-          if (!Array.isArray(piePayload.json.slices)) {
-            throw new Error("expected pie slices array from browser API call");
-          }
-
-          const totalRevenue = toNumber(piePayload.json.totalRevenue);
-          if (totalRevenue < 0) {
-            throw new Error(`expected non-negative totalRevenue, got ${totalRevenue}`);
-          }
-
-          for (const slice of piePayload.json.slices) {
-            if (!("country" in slice) || !("revenue" in slice) || !("percentage" in slice)) {
-              throw new Error("pie slice missing required keys in browser API payload");
-            }
-            toNumber(slice.revenue);
-            toNumber(slice.percentage);
+          const statCards = await page.$$(".rfm-stat-card");
+          if (statCards.length < 3) {
+            throw new Error(`expected summary stat cards for pie chart, found ${statCards.length}`);
           }
 
           if (pageErrors.length > 0) {
             throw new Error(`frontend runtime errors detected: ${pageErrors.join(" | ")}`);
           }
+        } finally {
+          await browser.close();
+        }
+      }
+    },
+    {
+      name: "frontend pie UI: changing to empty date range shows no-data state",
+      run: async () => {
+        await uploadFixture(ctx, ctx.frontendBaseUrl);
+        const jobId = await createCleaningJob(ctx, ctx.frontendBaseUrl);
+        await waitForCompletedCleaningJob(ctx, ctx.frontendBaseUrl, jobId);
+
+        const browser = await chromium.launch({ headless: true });
+        const page = await browser.newPage();
+
+        try {
+          await page.goto(ctx.frontendBaseUrl, { waitUntil: "networkidle" });
+          await page.waitForSelector("text=View Existing Results", { timeout: 10000 });
+          await page.click("text=View Existing Results");
+          await page.waitForSelector("text=Results", { timeout: 20000 });
+
+          await page.waitForSelector("text=/RS Pie Chart/i", { timeout: 20000 });
+          await page.click("text=/RS Pie Chart/i");
+
+          await page.waitForSelector("#rs-start-date", { timeout: 10000 });
+
+          // First confirm non-empty state renders for known fixture range.
+          await page.fill("#rs-start-date", "2010-01-01");
+          await page.fill("#rs-end-date", "2010-12-31");
+          await page.click(".rfm-apply-btn");
+          await page.waitForSelector(".rs-legend-row", { timeout: 15000 });
+
+          // Then switch to empty range and assert empty-state message is shown.
+          await page.fill("#rs-start-date", "2100-01-01");
+          await page.fill("#rs-end-date", "2100-12-31");
+          await page.click(".rfm-apply-btn");
+
+          await page.waitForSelector("text=/No revenue data found for this date range/i", { timeout: 15000 });
         } finally {
           await browser.close();
         }
