@@ -1,0 +1,241 @@
+name: cis3760w26/amber/e-commerce-basket_rfm-patterns
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: "${{ github.ref }}"
+  cancel-in-progress: true
+jobs:
+  lint-backend:
+    runs-on: ubuntu-latest
+    container:
+      image: gradle:8.5-jdk17
+    if: ${{ github.event_name }} == "push" || ${{ github.event_name }} == "merge_request_event" || false || (always() && ${{ github.event_name }} == "push") || (always() && ${{ github.event_name }} == "merge_request_event")
+    timeout-minutes: 60
+    env:
+      GRADLE_USER_HOME: "${{ github.workspace }}/.gradle"
+    steps:
+    - uses: actions/checkout@v4.1.0
+      with:
+        fetch-depth: 20
+        lfs: true
+    - uses: actions/cache@v3.3.2
+      with:
+        path: |-
+          backend/.gradle/
+          .gradle/
+        key: gradle-${{ github.ref }}
+    - run: cd backend
+    - run: "./gradlew --no-daemon clean checkstyleMain checkstyleTest -x test"
+#     # 'artifacts.junit' was not transformed because there is no suitable equivalent in GitHub Actions
+    - uses: actions/upload-artifact@v4.1.0
+      if: always()
+      with:
+        name: "${{ github.job }}"
+        retention-days: 7
+        path: backend/build/reports/checkstyle/
+  lint-frontend:
+    runs-on: ubuntu-latest
+    container:
+      image: node:14
+    if: ${{ github.event_name }} == "push" || ${{ github.event_name }} == "merge_request_event" || false || (always() && ${{ github.event_name }} == "push") || (always() && ${{ github.event_name }} == "merge_request_event")
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@v4.1.0
+      with:
+        fetch-depth: 20
+        lfs: true
+    - uses: actions/cache@v3.3.2
+      with:
+        path: frontend/node_modules/
+        key: node-modules-${{ github.ref }}
+    - run: cd frontend
+    - run: npm install
+    - run: npx eslint "src/**/*.{ts,tsx}" -f checkstyle -o eslint-report.xml
+    - run: npm run lint
+    - uses: actions/upload-artifact@v4.1.0
+      if: always()
+      with:
+        name: "${{ github.job }}"
+        retention-days: 7
+        path: frontend/eslint-report.xml
+  test-backend:
+    needs:
+    - lint-backend
+    - lint-frontend
+    runs-on: ubuntu-latest
+    container:
+      image: gradle:8.5-jdk17
+    if: ${{ github.event_name }} == "push" || ${{ github.event_name }} == "merge_request_event" || false || (always() && ${{ github.event_name }} == "push") || (always() && ${{ github.event_name }} == "merge_request_event")
+    timeout-minutes: 60
+    env:
+      GRADLE_USER_HOME: "${{ github.workspace }}/.gradle"
+    steps:
+    - uses: actions/checkout@v4.1.0
+      with:
+        fetch-depth: 20
+        lfs: true
+    - uses: actions/cache@v3.3.2
+      with:
+        path: |-
+          backend/.gradle/
+          .gradle/
+        key: gradle-${{ github.ref }}
+    - uses: actions/download-artifact@v4.1.0
+    - run: cd backend
+    - run: "./gradlew --no-daemon clean test jacocoTestReport printJacocoSummary"
+#     # 'artifacts.junit' was not transformed because there is no suitable equivalent in GitHub Actions
+    - uses: actions/upload-artifact@v4.1.0
+      if: always()
+      with:
+        name: "${{ github.job }}"
+        retention-days: 14
+        path: |-
+          backend/build/reports/jacoco/test/jacocoTestReport.xml
+          backend/build/reports/jacoco/test/jacocoTestReport.csv
+          backend/build/test-results/
+#     # 'coverage' was not transformed because there is no suitable equivalent in GitHub Actions.
+  test-frontend:
+    needs:
+    - lint-backend
+    - lint-frontend
+    runs-on: ubuntu-latest
+    container:
+      image: node:14
+    if: ${{ github.event_name }} == "push" || ${{ github.event_name }} == "merge_request_event" || false || (always() && ${{ github.event_name }} == "push") || (always() && ${{ github.event_name }} == "merge_request_event")
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@v4.1.0
+      with:
+        fetch-depth: 20
+        lfs: true
+    - uses: actions/cache@v3.3.2
+      with:
+        path: frontend/node_modules/
+        key: node-modules-${{ github.ref }}
+    - uses: actions/download-artifact@v4.1.0
+    - run: cd frontend
+    - run: npm install
+    - run: mkdir -p test-results
+    - run: export JEST_JUNIT_OUTPUT=./test-results/junit.xml
+    - run: npm install jest-junit --no-save
+    - run: npm run test:coverage -- --reporters=default --reporters=jest-junit
+#     # 'artifacts.junit' was not transformed because there is no suitable equivalent in GitHub Actions
+    - uses: actions/upload-artifact@v4.1.0
+      if: always()
+      with:
+        name: "${{ github.job }}"
+        retention-days: 14
+        path: |-
+          frontend/coverage/lcov.info
+          frontend/test-results/junit.xml
+          frontend/junit.xml
+#     # 'coverage' was not transformed because there is no suitable equivalent in GitHub Actions.
+  integration-full-stack:
+    needs:
+    - test-backend
+    - test-frontend
+    runs-on: ubuntu-latest
+    container:
+      image: node:18-bullseye
+    if: ${{ github.event_name }} == "push" || ${{ github.event_name }} == "merge_request_event" || false || (always() && ${{ github.event_name }} == "merge_request_event") || (always() && ${{ github.event_name }} == "push" && ${{ github.ref }} == $CI_DEFAULT_BRANCH)
+    timeout-minutes: 60
+    services:
+      database:
+        image: mariadb:10.6
+    env:
+      MYSQL_ROOT_PASSWORD: pwd
+      MYSQL_DATABASE: template_db
+      DB_DATABASE: template_db
+      DB_USER: root
+      DB_PASSWORD: pwd
+    steps:
+    - uses: actions/checkout@v4.1.0
+      with:
+        fetch-depth: 20
+        lfs: true
+    - uses: actions/download-artifact@v4.1.0
+    - run: apt-get update -y && apt-get install -y openjdk-17-jdk curl jq mariadb-client
+    - run: mkdir -p integration/artifacts/junit
+    - run: cd integration
+    - run: npm ci
+    - run: cd ..
+    - run: |
+        # Wait for DB service and seed baseline schema/data expected before Flyway V2+
+        i=1
+        while [ $i -le 60 ]; do
+          if mysql -h database -uroot -p"$DB_PASSWORD" -e "SELECT 1" >/dev/null 2>&1; then
+            echo "[ready] database"
+            break
+          fi
+          echo "[wait] database (${i}/60)"
+          i=$((i+1))
+          sleep 2
+        done
+        if [ $i -gt 60 ]; then
+          echo "[error] database did not become ready in time"
+          exit 1
+        fi
+        mariadb -h database -uroot -p"$DB_PASSWORD" "$DB_DATABASE" < database/scripts/setup.sql
+        # Start backend with DB service (Gradle wrapper will use the env vars)
+        cd backend
+        export DB_ADDRESS="jdbc:mysql://database:3306" DB_DATABASE="$DB_DATABASE" DB_USER="$DB_USER" DB_PASSWORD="$DB_PASSWORD"
+        mkdir -p /flyway/sql
+        cp -R ../database/scripts/. /flyway/sql/
+        ./gradlew --no-daemon clean bootRun > ../integration/artifacts/backend-run.log 2>&1 &
+        echo $! > ../integration/artifacts/backend.pid || true
+        i=1
+        while [ $i -le 60 ]; do
+          if ! kill -0 "$(cat ../integration/artifacts/backend.pid)" 2>/dev/null; then
+            echo "[error] backend process exited before becoming ready"
+            tail -n 200 ../integration/artifacts/backend-run.log || true
+            exit 1
+          fi
+          if curl -sS --fail http://localhost:8080${BACKEND_READY_PATH:-/api/docs.html} >/dev/null 2>&1; then
+            echo "[ready] backend"
+            break
+          fi
+          echo "[wait] backend (${i}/60)"
+          i=$((i+1))
+          sleep 2
+        done
+        if [ $i -gt 60 ]; then
+          echo "[error] backend did not become ready in time"
+          tail -n 200 ../integration/artifacts/backend-run.log || true
+          exit 1
+        fi
+        # Start lightweight frontend shell + API proxy server for frontend integration tests
+        cd ..
+        BACKEND_PROXY="http://localhost:8080" node integration/scripts/frontend-proxy-server.mjs > integration/artifacts/frontend-serve.log 2>&1 &
+        echo $! > integration/artifacts/frontend.pid || true
+        i=1
+        while [ $i -le 60 ]; do
+          if curl -sS --fail http://localhost:3000${FRONTEND_READY_PATH:-/} >/dev/null 2>&1; then
+            echo "[ready] frontend"
+            break
+          fi
+          echo "[wait] frontend (${i}/60)"
+          i=$((i+1))
+          sleep 2
+        done
+        if [ $i -gt 60 ]; then
+          echo "[error] frontend did not become ready in time"
+          tail -n 200 integration/artifacts/frontend-serve.log || true
+          exit 1
+        fi
+        # Run backend + frontend scopes only (ui/Playwright remains local-only)
+        BACKEND_BASE_URL=http://localhost:8080 FRONTEND_BASE_URL=http://localhost:3000 INTEGRATION_SCOPE=backend,frontend node integration/run-integration-tests.mjs
+    - run: if [ -f integration/artifacts/backend.pid ]; then kill "$(cat integration/artifacts/backend.pid)" || true; fi
+      if: always()
+    - run: if [ -f integration/artifacts/frontend.pid ]; then kill "$(cat integration/artifacts/frontend.pid)" || true; fi
+      if: always()
+    - run: tar -czf integration/artifacts/logs.tar.gz integration/artifacts || true
+      if: always()
+#     # 'artifacts.junit' was not transformed because there is no suitable equivalent in GitHub Actions
+    - uses: actions/upload-artifact@v4.1.0
+      if: always()
+      with:
+        name: "${{ github.job }}"
+        retention-days: 14
+        path: integration/artifacts/
